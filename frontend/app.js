@@ -1,22 +1,112 @@
 /**
  * Frontend Logic for "Ask Alma" Survey Tool
- * 
- * V1: This script currently only simulates a submission for the mockup.
- * In the future, this will dynamically load the survey config from the backend
- * and submit the responses via API.
  */
+
+let currentSurveyId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const surveyForm = document.getElementById('survey-form');
-
+    
     if (surveyForm) {
         surveyForm.addEventListener('submit', handleSurveySubmit);
     }
+
+    loadSurvey();
 });
 
 /**
+ * Loads the survey configuration from the mock JSON file.
+ */
+async function loadSurvey() {
+    const loadingEl = document.getElementById('loading');
+    const formEl = document.getElementById('survey-form');
+    const containerEl = document.getElementById('questions-container');
+
+    loadingEl.classList.remove('hidden');
+    formEl.classList.add('hidden');
+
+    try {
+        const response = await fetch('./mock-data/survey-questions.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        currentSurveyId = data.survey_id;
+        
+        // Build the UI
+        buildSurveyUI(data.questions, containerEl);
+        
+        loadingEl.classList.add('hidden');
+        formEl.classList.remove('hidden');
+    } catch (error) {
+        console.error('Error loading survey:', error);
+        loadingEl.textContent = 'Fehler beim Laden der Umfrage.';
+    }
+}
+
+/**
+ * Dynamically builds the survey HTML elements.
+ * 
+ * @param {Array} questions 
+ * @param {HTMLElement} container 
+ */
+function buildSurveyUI(questions, container) {
+    container.innerHTML = ''; // Clear container
+
+    questions.forEach((q, index) => {
+        const block = document.createElement('div');
+        block.className = 'question-block';
+        block.id = q.id;
+
+        if (q.type === 'text') {
+            const label = document.createElement('label');
+            label.className = 'question-label';
+            label.htmlFor = `${q.id}-input`;
+            label.textContent = q.label;
+            
+            const textarea = document.createElement('textarea');
+            textarea.id = `${q.id}-input`;
+            textarea.name = q.id;
+            textarea.rows = 4;
+            textarea.placeholder = "Ihre Antwort...";
+            if (q.required) textarea.required = true;
+
+            block.appendChild(label);
+            block.appendChild(textarea);
+        } else if (q.type === 'multiple_choice') {
+            const label = document.createElement('p');
+            label.className = 'question-label';
+            label.textContent = q.label;
+
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options';
+
+            q.options.forEach(opt => {
+                const optLabel = document.createElement('label');
+                optLabel.className = 'option-label';
+                
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = q.id;
+                input.value = opt.value;
+                if (q.required) input.required = true; // browser will enforce at least one selection
+
+                optLabel.appendChild(input);
+                optLabel.appendChild(document.createTextNode(' ' + opt.text));
+                optionsDiv.appendChild(optLabel);
+            });
+
+            block.appendChild(label);
+            block.appendChild(optionsDiv);
+        }
+
+        container.appendChild(block);
+    });
+}
+
+/**
  * Handles the submission of the survey form.
- * Prevents default reload, gathers data, and simulates an API POST request.
  * 
  * @param {Event} event 
  */
@@ -25,36 +115,30 @@ function handleSurveySubmit(event) {
 
     // Gather form data
     const formData = new FormData(event.target);
-    const results = {};
+    const answers = {};
     
     for (let [key, value] of formData.entries()) {
-        results[key] = value;
+        answers[key] = value;
     }
 
-    console.log('Gathered Survey Data:', results);
+    const payload = {
+        survey_id: currentSurveyId,
+        timestamp: new Date().toISOString(),
+        answers: answers
+    };
 
-    // Validation (simple mockup check)
-    if (!results.q1 || !results.q2) {
-        alert('Bitte beantworten Sie alle Fragen, bevor Sie die Umfrage absenden.');
-        return;
-    }
+    console.log('Gathered Survey Data:', payload);
 
-    // TODO: In V1/V2, send this data to the backend via fetch() API.
-    // Example:
-    // fetch('/api/results', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify(results)
-    // })
-
+    // TODO: In V2, send this payload to the backend API via fetch()
+    
     // Simulate successful submission
-    simulateApiCall(results);
+    simulateApiCall(payload);
 }
 
 /**
  * Simulates a delay for an API call to show user feedback.
  */
-function simulateApiCall(data) {
+function simulateApiCall(payload) {
     const submitBtn = document.querySelector('.btn-primary');
     const originalText = submitBtn.textContent;
     
@@ -68,5 +152,5 @@ function simulateApiCall(data) {
         
         // Reset form after successful submission
         document.getElementById('survey-form').reset();
-    }, 1000); // 1s simulated delay
+    }, 1000);
 }

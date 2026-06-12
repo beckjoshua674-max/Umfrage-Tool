@@ -19,34 +19,9 @@
             <!-- Loading indicator -->
             <div id="loading" class="hidden">Lade Umfrage...</div>
 
-            <!-- Survey Content (Dynamically loaded, but static for now) -->
-            <form id="survey-form">
-                
-                <!-- Mockup Question 1: Freitext -->
-                <div class="question-block" id="q1">
-                    <label class="question-label" for="q1-input">1. Welche Erfahrungen haben Sie bisher mit dem Tool "Ask Alma" gemacht?</label>
-                    <textarea id="q1-input" name="q1" rows="4" placeholder="Ihre Antwort..."></textarea>
-                </div>
-
-                <!-- Mockup Question 2: Multiple Choice -->
-                <div class="question-block" id="q2">
-                    <p class="question-label">2. Wie bewerten Sie die generelle Nützlichkeit von "Ask Alma" für Ihr Studium?</p>
-                    <div class="options">
-                        <label class="option-label">
-                            <input type="radio" name="q2" value="sehr_nuetzlich"> Sehr nützlich
-                        </label>
-                        <label class="option-label">
-                            <input type="radio" name="q2" value="eher_nuetzlich"> Eher nützlich
-                        </label>
-                        <label class="option-label">
-                            <input type="radio" name="q2" value="wenig_nuetzlich"> Wenig nützlich
-                        </label>
-                        <label class="option-label">
-                            <input type="radio" name="q2" value="gar_nicht_nuetzlich"> Gar nicht nützlich
-                        </label>
-                    </div>
-                </div>
-
+            <!-- Survey Content -->
+            <form id="survey-form" class="hidden">
+                <div id="questions-container"></div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Umfrage absenden</button>
                 </div>
