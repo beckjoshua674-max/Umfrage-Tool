@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask Alma - Umfrage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="container">
+            <h1>Ask Alma - Evaluation</h1>
+            <p>Umfrage-Tool der Hochschule Kehl</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="survey-container" class="survey-box">
+            <!-- Loading indicator -->
+            <div id="loading" class="hidden">Lade Umfrage...</div>
+
+            <!-- Survey Content (Dynamically loaded, but static for now) -->
+            <form id="survey-form">
+                
+                <!-- Mockup Question 1: Freitext -->
+                <div class="question-block" id="q1">
+                    <label class="question-label" for="q1-input">1. Welche Erfahrungen haben Sie bisher mit dem Tool "Ask Alma" gemacht?</label>
+                    <textarea id="q1-input" name="q1" rows="4" placeholder="Ihre Antwort..."></textarea>
+                </div>
+
+                <!-- Mockup Question 2: Multiple Choice -->
+                <div class="question-block" id="q2">
+                    <p class="question-label">2. Wie bewerten Sie die generelle Nützlichkeit von "Ask Alma" für Ihr Studium?</p>
+                    <div class="options">
+                        <label class="option-label">
+                            <input type="radio" name="q2" value="sehr_nuetzlich"> Sehr nützlich
+                        </label>
+                        <label class="option-label">
+                            <input type="radio" name="q2" value="eher_nuetzlich"> Eher nützlich
+                        </label>
+                        <label class="option-label">
+                            <input type="radio" name="q2" value="wenig_nuetzlich"> Wenig nützlich
+                        </label>
+                        <label class="option-label">
+                            <input type="radio" name="q2" value="gar_nicht_nuetzlich"> Gar nicht nützlich
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Umfrage absenden</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
