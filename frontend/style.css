@@ -1,6 +1,6 @@
 /* Corporate Design Colors (Hochschule Kehl) */
 :root {
-    --color-primary: #202240; /* Dark Navy */
+    --color-primary: #2160a6; /* Dark Navy */
     --color-secondary: #454763; /* Lighter Navy */
     --color-accent: #ffe100; /* Yellow */
     --color-text-light: #8B8B8B;
@@ -37,7 +37,6 @@ body {
     color: var(--color-white);
     padding: 30px 0;
     text-align: center;
-    border-bottom: 5px solid var(--color-accent);
 }
 
 .app-header h1 {
@@ -47,7 +46,7 @@ body {
 
 .app-header p {
     margin: 5px 0 0 0;
-    color: var(--color-accent);
+    color: var(--color-white);
 }
 
 /* Main Content */
