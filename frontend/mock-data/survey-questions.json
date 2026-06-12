@@ -1,0 +1,25 @@
+{
+  "survey_id": "ask_alma_eval_v1",
+  "title": "Ask Alma - Evaluation",
+  "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens von Ask Alma.",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "text",
+      "label": "1. Welche Erfahrungen haben Sie bisher mit dem Tool \"Ask Alma\" gemacht?",
+      "required": true
+    },
+    {
+      "id": "q2",
+      "type": "multiple_choice",
+      "label": "2. Wie bewerten Sie die generelle Nützlichkeit von \"Ask Alma\" für Ihr Studium?",
+      "options": [
+        { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
+        { "value": "eher_nuetzlich", "text": "Eher nützlich" },
+        { "value": "wenig_nuetzlich", "text": "Wenig nützlich" },
+        { "value": "gar_nicht_nuetzlich", "text": "Gar nicht nützlich" }
+      ],
+      "required": true
+    }
+  ]
+}
