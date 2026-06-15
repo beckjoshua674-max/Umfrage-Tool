@@ -1,0 +1,146 @@
+/* Corporate Design Colors (Hochschule Kehl) */
+:root {
+    --color-primary: #2160a6; /* Dark Navy */
+    --color-secondary: #454763; /* Lighter Navy */
+    --color-accent: #ffe100; /* Yellow */
+    --color-text-light: #8B8B8B;
+    --color-background-grey: #e1e1e1;
+    --color-white: #ffffff;
+    --color-text-dark: #1a1a1a;
+    --border-radius: 8px;
+    --spacing-md: 20px;
+}
+
+/* Base Styles */
+body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background-color: var(--color-background-grey);
+    color: var(--color-text-dark);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-md);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Header */
+.app-header {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 30px 0;
+    text-align: center;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+.app-header p {
+    margin: 5px 0 0 0;
+    color: var(--color-white);
+}
+
+/* Main Content */
+main {
+    padding: 40px 0;
+}
+
+.survey-box {
+    background-color: var(--color-white);
+    border-radius: var(--border-radius);
+    padding: 30px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Questions */
+.question-block {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--color-background-grey);
+}
+
+.question-label {
+    display: block;
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    color: var(--color-primary);
+}
+
+/* Form Inputs */
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1rem;
+    box-sizing: border-box;
+    resize: vertical;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(32, 34, 64, 0.2);
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.option-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.option-label:hover {
+    background-color: var(--color-background-grey);
+}
+
+/* Buttons */
+.form-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+}
+
+/* Footer */
+.app-footer {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+}

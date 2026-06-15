@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask Alma - Umfrage</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="container">
+            <h1>Ask Alma - Evaluation</h1>
+            <p>Umfrage-Tool der Hochschule Kehl</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="survey-container" class="survey-box">
+            <!-- Loading indicator -->
+            <div id="loading" class="hidden">Lade Umfrage...</div>
+
+            <!-- Survey Content -->
+            <form id="survey-form" class="hidden">
+                <div id="questions-container"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Umfrage absenden</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
