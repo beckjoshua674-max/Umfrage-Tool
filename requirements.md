@@ -8,6 +8,7 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 * **KI-Tool-Stack:** Die Entwicklung und Planung erfolgt im Zusammenspiel der KI-Systeme **Codex** und **Antigravity**. 
 * **Single Source of Truth:** Diese `requirements.md` ist das zentrale Synchronisationsdokument für beide Tools. Vor jeder neuen Implementierungsphase ist der aktuelle Stand dieses Dokuments auszulesen.
 * **Update-Pflicht:** Sobald Anforderungen im Projektverlauf (egal mit welchem Tool) verfeinert oder geändert werden, ist diese Datei zwingend und umgehend zu aktualisieren.
+* **Chat-Verfeinerungen:** Wenn Anforderungen im Chat mit Codex konkretisiert, geändert oder neu entschieden werden, muss Codex diese Anpassungen unmittelbar in dieser `requirements.md` nachpflegen.
 * **Timebox für den ersten Prototyp (V1):** max. 1–2 Stunden.
 
 ## 3. Architektur & Prinzipien Verteilter Systeme (Fokus V1)
