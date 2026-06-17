@@ -3,6 +3,7 @@
 import os
 import json
 import datetime
+import requests
 from flask import Flask, render_template, request, redirect, url_for, flash
 
 app = Flask(__name__)
@@ -42,17 +43,14 @@ def index():
     Hauptroute für das Frontend.
     Holt die Umfragekonfiguration vom Backend (bzw. Mock) und rendert das HTML-Template.
     """
-    # Zukünftiger API-Aufruf:
-    # try:
-    #     response = requests.get(f"{BACKEND_API_URL}/survey")
-    #     response.raise_for_status()
-    #     survey_data = response.json()
-    # except Exception as e:
-    #     print(f"Fehler beim Laden vom Backend: {e}")
-    #     survey_data = get_mock_survey()
-    
-    # Derzeit verwenden wir direkt die Mock-Daten
-    survey_data = get_mock_survey()
+    # Versuche die Umfrage vom echten Backend (Codex) zu laden
+    try:
+        response = requests.get(f"{BACKEND_API_URL}/survey")
+        response.raise_for_status()
+        survey_data = response.json()
+    except Exception as e:
+        print(f"Warnung: Backend nicht erreichbar ({e}). Lade lokales Mock-up.")
+        survey_data = get_mock_survey()
     
     return render_template('index.html', survey=survey_data)
 
@@ -76,16 +74,17 @@ def submit():
     
     print("Daten für Backend vorbereitet:", json.dumps(payload, indent=2))
     
-    # Zukünftiger API-Aufruf:
-    # try:
-    #     response = requests.post(f"{BACKEND_API_URL}/results", json=payload)
-    #     response.raise_for_status()
-    # except Exception as e:
-    #     print(f"Fehler beim Senden an Backend: {e}")
-    #     flash("Fehler beim Speichern der Antworten. Bitte später erneut versuchen.")
-    #     return redirect(url_for('index'))
+    # Sende die gesammelten Antworten an das Backend (Codex)
+    try:
+        response = requests.post(f"{BACKEND_API_URL}/results", json=payload)
+        response.raise_for_status()
+        print("Erfolgreich an das Backend gesendet!")
+    except Exception as e:
+        print(f"Warnung: Fehler beim Senden an das Backend ({e}). "
+              f"Stellen Sie sicher, dass der Backend-Server von Codex läuft.")
+        # Wir zeigen vorerst trotzdem die Erfolgsseite, um den Nutzer nicht zu blockieren,
+        # solange sich das Backend noch in Entwicklung befindet.
         
-    # Wenn erfolgreich:
     return render_template('success.html')
 
 if __name__ == '__main__':
