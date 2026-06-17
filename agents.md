@@ -1,6 +1,5 @@
-Hier ist die aktualisierte Version der Richtlinien, ergänzt um die Vorgabe zu den deutschen Kommentaren:
-
 Richtlinien für die Zusammenarbeit der KI-Agenten (Ask Alma Umfrage-Tool)
+
 1. Systemkontext
 Du arbeitest als KI-Entwicklungsassistent an einem Projekt für das Universitätsmodul "Verteilte Systeme". Das Projekt ist ein Umfrage-Tool zur Evaluierung der KI "Ask Alma".
 
