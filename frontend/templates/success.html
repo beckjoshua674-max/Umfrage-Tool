@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erfolg - Ask Alma</title>
+    <!-- Verweist auf den static-Ordner in Flask -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="app-header">
+        <div class="container">
+            <h1>Ask Alma - Evaluation</h1>
+            <p>Umfrage-Tool der Hochschule Kehl</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="survey-box" style="text-align: center; padding: 50px 20px;">
+            <h2 style="color: var(--color-primary);">Vielen Dank!</h2>
+            <p>Ihre Antworten wurden erfolgreich gespeichert.</p>
+            <br>
+            <a href="{{ url_for('index') }}" class="btn-primary" style="text-decoration: none;">Weitere Umfrage ausfüllen</a>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ survey.title }}</title>
+    <!-- Verweist auf den static-Ordner in Flask -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="app-header">
+        <div class="container">
+            <h1>{{ survey.title }}</h1>
+            <p>{{ survey.description }}</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section id="survey-container" class="survey-box">
+            <!-- Fehleranzeigen via Flask Flash Messages (optional) -->
+            {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <ul class="flashes">
+                {% for message in messages %}
+                  <li style="color: red;">{{ message }}</li>
+                {% endfor %}
+                </ul>
+              {% endif %}
+            {% endwith %}
+
+            <!-- Standard HTML-Formular, das via POST an /submit gesendet wird. Javascript ist hier verboten. -->
+            <form action="{{ url_for('submit') }}" method="POST">
+                
+                <!-- Verstecktes Feld, um die Umfrage-ID an das Backend zu übermitteln -->
+                <input type="hidden" name="survey_id" value="{{ survey.survey_id }}">
+
+                <!-- Dynamische Schleife über alle Fragen aus der API (bzw. dem Mock) -->
+                {% for q in survey.questions %}
+                <div class="question-block" id="{{ q.id }}">
+                    
+                    {% if q.type == 'text' %}
+                        <!-- Freitext-Frage -->
+                        <label class="question-label" for="{{ q.id }}-input">{{ q.label }}</label>
+                        <textarea id="{{ q.id }}-input" name="{{ q.id }}" rows="4" placeholder="Ihre Antwort..." {% if q.required %}required{% endif %}></textarea>
+                    
+                    {% elif q.type == 'multiple_choice' %}
+                        <!-- Multiple-Choice-Frage -->
+                        <p class="question-label">{{ q.label }}</p>
+                        <div class="options">
+                            {% for opt in q.options %}
+                            <label class="option-label">
+                                <input type="radio" name="{{ q.id }}" value="{{ opt.value }}" {% if q.required %}required{% endif %}>
+                                {{ opt.text }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                </div>
+                {% endfor %}
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Umfrage absenden</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -29,3 +29,57 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 * **Containerisierung:** Bereitstellung von Client, Server und Datenbank als unabhängige Docker-Container.
 * **Automatisierung:** Vollautomatisierte Dokumentation und Agenten-Steuerung via `Agents.md`.
 * **Microservices:** Auslagerung von Diensten (z. B. Authentifizierung, Daten-Auswertung).
+
+## 7. API-Schnittstellen (Frontend <-> Backend)
+Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
+
+### 7.1 GET `/api/survey`
+- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend.
+- **Erwartete Antwort (JSON):**
+  ```json
+  {
+    "survey_id": "ask_alma_eval_v1",
+    "title": "Ask Alma - Evaluation",
+    "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens von Ask Alma.",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "label": "1. Welche Erfahrungen haben Sie bisher mit dem Tool \"Ask Alma\" gemacht?",
+        "required": true
+      },
+      {
+        "id": "q2",
+        "type": "multiple_choice",
+        "label": "2. Wie bewerten Sie die generelle Nützlichkeit von \"Ask Alma\" für Ihr Studium?",
+        "options": [
+          { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
+          { "value": "wenig_nuetzlich", "text": "Wenig nützlich" }
+        ],
+        "required": true
+      }
+    ]
+  }
+  ```
+
+### 7.2 POST `/api/results`
+- **Beschreibung:** Sendet die ausgefüllten Umfrageantworten vom Frontend an das Backend.
+- **Erwarteter Payload (JSON):**
+  ```json
+  {
+    "survey_id": "ask_alma_eval_v1",
+    "timestamp": "2026-06-12T10:45:00Z",
+    "answers": {
+      "q1": "Antworttext...",
+      "q2": "sehr_nuetzlich"
+    }
+  }
+  ```
+- **Erwartete Antwort:** Status `200 OK` (bzw. `201 Created`) bei erfolgreicher Speicherung.
+
+## 8. Abhängigkeiten (Frontend)
+Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt:
+```text
+Flask==3.0.3
+requests==2.31.0
+```
