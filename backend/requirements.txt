@@ -1,0 +1,2 @@
+# Keine externen Python-Pakete erforderlich.
+# Das Backend nutzt nur die Python-Standardbibliothek.

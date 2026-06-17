@@ -1,0 +1,98 @@
+{
+  "survey_id": "ask_alma_eval_v1",
+  "title": "Ask Alma - Evaluation",
+  "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens des KI-Tools 'Ask Alma'. Bitte nehmen Sie sich kurz Zeit, um die folgenden 10 Fragen zu beantworten.",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "text",
+      "label": "1. In welchem Studiengang und Semester studieren Sie?",
+      "required": true
+    },
+    {
+      "id": "q2",
+      "type": "multiple_choice",
+      "label": "2. Wie haeufig nutzen Sie 'Ask Alma' im Rahmen Ihres Studiums?",
+      "options": [
+        { "value": "taeglich", "text": "Taeglich" },
+        { "value": "woechentlich", "text": "Mehrmals woechentlich" },
+        { "value": "monatlich", "text": "Gelegentlich (mehrmals im Monat)" },
+        { "value": "selten", "text": "Selten" },
+        { "value": "nie", "text": "Noch nie" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q3",
+      "type": "multiple_choice",
+      "label": "3. Wie bewerten Sie die generelle Nuetzlichkeit von 'Ask Alma' fuer Ihr Studium?",
+      "options": [
+        { "value": "sehr_nuetzlich", "text": "Sehr nuetzlich" },
+        { "value": "eher_nuetzlich", "text": "Eher nuetzlich" },
+        { "value": "wenig_nuetzlich", "text": "Wenig nuetzlich" },
+        { "value": "gar_nicht_nuetzlich", "text": "Gar nicht nuetzlich" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q4",
+      "type": "text",
+      "label": "4. Fuer welche spezifischen Aufgaben oder Fragestellungen nutzen Sie das Tool am haeufigsten (z.B. Recherche, Zusammenfassungen, Verstaendnisfragen)?",
+      "required": true
+    },
+    {
+      "id": "q5",
+      "type": "multiple_choice",
+      "label": "5. Wie zufrieden sind Sie mit der Qualitaet und Genauigkeit der Antworten von 'Ask Alma'?",
+      "options": [
+        { "value": "sehr_zufrieden", "text": "Sehr zufrieden" },
+        { "value": "eher_zufrieden", "text": "Eher zufrieden" },
+        { "value": "eher_unzufrieden", "text": "Eher unzufrieden" },
+        { "value": "sehr_unzufrieden", "text": "Sehr unzufrieden" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q6",
+      "type": "text",
+      "label": "6. Hatten Sie bereits Situationen, in denen 'Ask Alma' falsche oder irrefuehrende Informationen geliefert hat? (Bitte kurz erlaeutern)",
+      "required": false
+    },
+    {
+      "id": "q7",
+      "type": "multiple_choice",
+      "label": "7. Wie benutzerfreundlich und intuitiv finden Sie die Oberflaeche von 'Ask Alma'?",
+      "options": [
+        { "value": "sehr_intuitiv", "text": "Sehr intuitiv" },
+        { "value": "eher_intuitiv", "text": "Eher intuitiv" },
+        { "value": "gewoehnungsbeduerftig", "text": "Gewoehnungsbeduerftig" },
+        { "value": "kompliziert", "text": "Kompliziert" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q8",
+      "type": "multiple_choice",
+      "label": "8. Wuerden Sie 'Ask Alma' Ihren Kommilitoninnen und Kommilitonen weiterempfehlen?",
+      "options": [
+        { "value": "auf_jeden_fall", "text": "Ja, auf jeden Fall" },
+        { "value": "wahrscheinlich", "text": "Wahrscheinlich" },
+        { "value": "eher_nicht", "text": "Eher nicht" },
+        { "value": "auf_keinen_fall", "text": "Auf keinen Fall" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q9",
+      "type": "text",
+      "label": "9. Welche zusaetzlichen Funktionen oder Verbesserungen wuerden Sie sich fuer 'Ask Alma' in Zukunft wuenschen?",
+      "required": false
+    },
+    {
+      "id": "q10",
+      "type": "text",
+      "label": "10. Haben Sie weitere Anmerkungen oder generelles Feedback zum Tool?",
+      "required": false
+    }
+  ]
+}

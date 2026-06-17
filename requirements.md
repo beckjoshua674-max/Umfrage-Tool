@@ -33,8 +33,21 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 ## 7. API-Schnittstellen (Frontend <-> Backend)
 Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
 
+### 7.0 GET `/api/health`
+- **Beschreibung:** Liefert einen einfachen Betriebsstatus des Backends, damit Frontend und Entwicklung prüfen können, ob der Server erreichbar ist.
+- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
+- **Erwartete Antwort (JSON):**
+  ```json
+  {
+    "status": "ok",
+    "service": "ask-alma-backend"
+  }
+  ```
+- **Statuscode:** `200 OK` bei erreichbarem Backend.
+
 ### 7.1 GET `/api/survey`
 - **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend.
+- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
 - **Erwartete Antwort (JSON):**
   ```json
   {
@@ -64,6 +77,7 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
 
 ### 7.2 POST `/api/results`
 - **Beschreibung:** Sendet die ausgefüllten Umfrageantworten vom Frontend an das Backend.
+- **Content-Type:** `application/json`
 - **Erwarteter Payload (JSON):**
   ```json
   {
@@ -75,9 +89,34 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
     }
   }
   ```
-- **Erwartete Antwort:** Status `200 OK` (bzw. `201 Created`) bei erfolgreicher Speicherung.
+- **Validierungsregeln:**
+  - `survey_id` muss ein nicht-leerer String sein und zur vom Backend ausgelieferten Umfrage passen.
+  - `timestamp` ist optional, muss bei Übergabe aber ein ISO-8601-String sein.
+  - `answers` muss ein JSON-Objekt sein, dessen Keys den Frage-IDs aus `GET /api/survey` entsprechen.
+  - Pflichtfragen (`required: true`) müssen eine nicht-leere Antwort enthalten.
+  - Antworten auf `multiple_choice`-Fragen müssen exakt einem `value` der jeweiligen `options` entsprechen.
+- **Erwartete Erfolgsantwort:** Status `201 Created` bei erfolgreicher Speicherung.
+  ```json
+  {
+    "status": "created",
+    "result_id": "uuid-der-gespeicherten-antwort"
+  }
+  ```
+- **Erwartete Fehlerantwort:** Status `400 Bad Request`, wenn der Payload nicht valide ist.
+  ```json
+  {
+    "status": "error",
+    "message": "Beschreibung des Validierungsfehlers"
+  }
+  ```
 
-## 8. Abhängigkeiten (Frontend)
+## 8. Abhängigkeiten (Backend)
+Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:
+```text
+Python >= 3.10
+```
+
+## 9. Abhängigkeiten (Frontend)
 Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt:
 ```text
 Flask==3.0.3
