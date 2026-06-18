@@ -95,7 +95,7 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   - `answers` muss ein JSON-Objekt sein, dessen Keys den Frage-IDs aus `GET /api/survey` entsprechen.
   - Pflichtfragen (`required: true`) müssen eine nicht-leere Antwort enthalten.
   - Antworten auf `multiple_choice`-Fragen müssen exakt einem `value` der jeweiligen `options` entsprechen.
-- **Erwartete Erfolgsantwort:** Status `201 Created` bei erfolgreicher Speicherung.
+- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
   ```json
   {
     "status": "created",
@@ -109,6 +109,15 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
     "message": "Beschreibung des Validierungsfehlers"
   }
   ```
+
+### 7.3 POST `/api/survey/questions`
+- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu. (Wird zur administrativen Verwaltung genutzt)
+- **Erwarteter Payload (JSON):** Ein einzelnes Frage-Objekt (ähnlich der Objekte in `GET /api/survey`).
+- **Erwartete Antwort:** Status `201 Created`.
+
+### 7.4 DELETE `/api/survey/questions/<id>`
+- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID. (Wird zur administrativen Verwaltung genutzt)
+- **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
 
 ## 8. Abhängigkeiten (Backend)
 Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:

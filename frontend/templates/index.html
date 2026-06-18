@@ -29,6 +29,7 @@
             {% endwith %}
 
             <!-- Standard HTML-Formular, das via POST an /submit gesendet wird. Javascript ist hier verboten. -->
+            {% if survey %}
             <form action="{{ url_for('submit') }}" method="POST">
                 
                 <!-- Verstecktes Feld, um die Umfrage-ID an das Backend zu übermitteln -->
@@ -63,6 +64,14 @@
                     <button type="submit" class="btn-primary">Umfrage absenden</button>
                 </div>
             </form>
+            {% else %}
+            <div style="text-align: center; color: red; padding: 40px;">
+                <h2>Verbindung zum Server fehlgeschlagen</h2>
+                <p>Es können aktuell keine Fragen angezeigt werden. Bitte versuchen Sie es später erneut.</p>
+            </div>
+            {% endif %}
+
+
         </section>
     </main>
 

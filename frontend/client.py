@@ -13,30 +13,6 @@ app.secret_key = 'ask-alma-secret-key-dev'
 # Konfiguration: URL des echten Backends (wird später von Codex bereitgestellt)
 BACKEND_API_URL = "http://localhost:8000/api"
 
-def get_mock_survey():
-    """
-    Lädt Beispieldaten aus der lokalen JSON-Datei.
-    Wird als Fallback genutzt, solange das echte Backend noch nicht läuft.
-    """
-    mock_path = os.path.join(os.path.dirname(__file__), 'mock-data', 'survey-questions.json')
-    try:
-        with open(mock_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        # Fallback, falls die mock-data Datei nicht existiert
-        return {
-            "survey_id": "ask_alma_eval_v1",
-            "title": "Ask Alma - Evaluation",
-            "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens von Ask Alma.",
-            "questions": [
-                {
-                    "id": "q1",
-                    "type": "text",
-                    "label": "1. Welche Erfahrungen haben Sie bisher mit dem Tool \"Ask Alma\" gemacht?",
-                    "required": True
-                }
-            ]
-        }
 
 @app.route('/', methods=['GET'])
 def index():
@@ -50,8 +26,8 @@ def index():
         response.raise_for_status()
         survey_data = response.json()
     except Exception as e:
-        print(f"Warnung: Backend nicht erreichbar ({e}). Lade lokales Mock-up.")
-        survey_data = get_mock_survey()
+        print(f"Fehler: Backend nicht erreichbar ({e}). Zeige keine Fragen an.")
+        survey_data = None
     
     return render_template('index.html', survey=survey_data)
 
