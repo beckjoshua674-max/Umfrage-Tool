@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask Alma - Rollenauswahl</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .role-btn {
+            display: block;
+            width: 100%;
+            margin-bottom: 20px;
+            padding: 15px;
+            font-size: 1.2rem;
+            text-align: center;
+            text-decoration: none;
+            background-color: var(--color-primary);
+            color: var(--color-white);
+            border-radius: var(--border-radius);
+            transition: background-color 0.3s;
+        }
+        .role-btn:hover {
+            background-color: var(--color-secondary);
+        }
+        .admin-btn {
+            background-color: var(--color-hs-kehl);
+        }
+        .admin-btn:hover {
+            background-color: var(--color-secondary);
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="container">
+            <h1>Ask Alma - Evaluation</h1>
+            <p>Bitte wählen Sie Ihre Rolle aus, um fortzufahren.</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="survey-box" style="text-align: center; max-width: 500px; margin: 40px auto; padding: 40px;">
+            <a href="{{ url_for('survey', role='student') }}" class="role-btn">Ich bin Student</a>
+            <a href="{{ url_for('survey', role='professor') }}" class="role-btn">Ich bin Professor</a>
+            <hr style="margin: 30px 0; border: 1px solid var(--color-background-grey);">
+            <a href="{{ url_for('admin') }}" class="role-btn admin-btn">Login als Admin</a>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -47,7 +47,7 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
 
 ### 7.1 GET `/api/survey`
 - **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend.
-- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
+- **Erwartete Anfrage:** Optionaler Query-Parameter `?role=student|professor|admin`. Das Backend sollte die Fragen entsprechend der Zielgruppe filtern. Kein Request-Body.
 - **Erwartete Antwort (JSON):**
   ```json
   {
@@ -118,6 +118,23 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
 ### 7.4 DELETE `/api/survey/questions/<id>`
 - **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID. (Wird zur administrativen Verwaltung genutzt)
 - **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
+
+### 7.5 GET `/api/results`
+- **Beschreibung:** Liefert alle bisher gespeicherten Umfrage-Antworten. (Wird im Admin-Dashboard genutzt)
+- **Erwartete Antwort (JSON):** Array von Ergebnis-Objekten.
+  ```json
+  [
+    {
+      "result_id": "uuid",
+      "received_at": "2026-06-12T10:45:00Z",
+      "survey_id": "ask_alma_eval_v1",
+      "answers": {
+        "q1": "Antworttext...",
+        "q2": "sehr_nuetzlich"
+      }
+    }
+  ]
+  ```
 
 ## 8. Abhängigkeiten (Backend)
 Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:
