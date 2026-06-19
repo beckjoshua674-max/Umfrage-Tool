@@ -1,0 +1,104 @@
+{
+  "survey_id": "ask_alma_student_v1",
+  "title": "Ask Alma - Studentenevaluation",
+  "description": "Bitte bewerten Sie als Studierende/r den Nutzen von Ask Alma für Ihr Studium.",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple_choice",
+      "label": "1. Wie bewerten Sie die generelle Nützlichkeit von Ask Alma?",
+      "options": [
+        { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
+        { "value": "eher_nuetzlich", "text": "Eher nützlich" },
+        { "value": "wenig_nuetzlich", "text": "Wenig nützlich" },
+        { "value": "gar_nicht_nuetzlich", "text": "Gar nicht nützlich" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q2",
+      "type": "multiple_choice",
+      "label": "2. Wie oft nutzen Sie Ask Alma in der Woche?",
+      "options": [
+        { "value": "taeglich", "text": "Täglich" },
+        { "value": "mehrmals_woechentlich", "text": "Mehrmals wöchentlich" },
+        { "value": "einmal_woechentlich", "text": "Einmal wöchentlich" },
+        { "value": "seltener", "text": "Seltener" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q3",
+      "type": "text",
+      "label": "3. Welche Funktionen fehlen Ihnen bisher am meisten?",
+      "required": false
+    },
+    {
+      "id": "q4",
+      "type": "multiple_choice",
+      "label": "4. Hat sich Ihre Lernleistung durch Ask Alma verbessert?",
+      "options": [
+        { "value": "ja_deutlich", "text": "Ja, deutlich" },
+        { "value": "ja_etwas", "text": "Ja, etwas" },
+        { "value": "nein", "text": "Nein, kaum oder gar nicht" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q5",
+      "type": "multiple_choice",
+      "label": "5. Wie intuitiv ist die Benutzeroberfläche?",
+      "options": [
+        { "value": "sehr_intuitiv", "text": "Sehr intuitiv" },
+        { "value": "teilweise_intuitiv", "text": "Teilweise intuitiv" },
+        { "value": "unuebersichtlich", "text": "Unübersichtlich" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q6",
+      "type": "multiple_choice",
+      "label": "6. Würden Sie Ask Alma Ihren Kommilitonen weiterempfehlen?",
+      "options": [
+        { "value": "auf_jeden_fall", "text": "Auf jeden Fall" },
+        { "value": "vielleicht", "text": "Vielleicht" },
+        { "value": "eher_nicht", "text": "Eher nicht" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q7",
+      "type": "text",
+      "label": "7. In welchen Modulen hilft Ihnen das Tool am meisten?",
+      "required": true
+    },
+    {
+      "id": "q8",
+      "type": "multiple_choice",
+      "label": "8. Gibt es häufig technische Probleme bei der Nutzung?",
+      "options": [
+        { "value": "oft", "text": "Ja, oft" },
+        { "value": "selten", "text": "Nein, sehr selten" },
+        { "value": "nie", "text": "Noch nie Probleme gehabt" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q9",
+      "type": "multiple_choice",
+      "label": "9. Wie zufrieden sind Sie mit der Qualität der KI-Antworten?",
+      "options": [
+        { "value": "sehr_zufrieden", "text": "Sehr zufrieden" },
+        { "value": "zufrieden", "text": "Zufrieden" },
+        { "value": "unzufrieden", "text": "Unzufrieden" }
+      ],
+      "required": true
+    },
+    {
+      "id": "q10",
+      "type": "text",
+      "label": "10. Haben Sie sonstige Anmerkungen oder Wünsche? (Freitext)",
+      "required": false
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Ask Alma - Login{% endblock %}
+{% block header_title %}Ask Alma Login{% endblock %}
+{% block header_subtitle %}Bitte melden Sie sich an.{% endblock %}
+
+{% block content %}
+<div class="login-box card" style="max-width: 400px; margin: 40px auto;">
+    <h2 class="text-center" style="margin-bottom: 20px; color: var(--color-hs-kehl);">Anmeldung</h2>
+    
+    <form action="{{ url_for('login') }}" method="POST" class="modern-form">
+        <!-- Wir übergeben auch die gewünschte Rolle (falls vorhanden), um später darauf routen zu können -->
+        <input type="hidden" name="role" value="{{ request.args.get('role', '') }}">
+        
+        <div class="form-group">
+            <label for="username">Benutzername</label>
+            <input type="text" id="username" name="username" class="form-control" required placeholder="z.B. user123">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Passwort</label>
+            <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••">
+        </div>
+        
+        <div class="form-actions text-center" style="margin-top: 25px;">
+            <button type="submit" class="btn-primary" style="width: 100%;">Anmelden</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

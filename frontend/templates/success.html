@@ -1,33 +1,19 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Erfolg - Ask Alma</title>
-    <!-- Verweist auf den static-Ordner in Flask -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <header class="app-header">
-        <div class="container">
-            <h1>Ask Alma - Evaluation</h1>
-            <p>Umfrage-Tool der Hochschule Kehl</p>
-        </div>
-    </header>
+{% extends "base.html" %}
 
-    <main class="container">
-        <section class="survey-box" style="text-align: center; padding: 50px 20px;">
-            <h2 style="color: var(--color-primary);">Vielen Dank!</h2>
-            <p>Ihre Antworten wurden erfolgreich gespeichert.</p>
-            <br>
-            <a href="{{ url_for('index') }}" class="btn-primary" style="text-decoration: none;">Weitere Umfrage ausfüllen</a>
-        </section>
-    </main>
+{% block title %}Ask Alma - Vielen Dank{% endblock %}
+{% block header_title %}Vielen Dank!{% endblock %}
+{% block header_subtitle %}Ihre Umfrage wurde erfolgreich gespeichert.{% endblock %}
 
-    <footer class="app-footer">
-        <div class="container">
-            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
-        </div>
-    </footer>
-</body>
-</html>
+{% block content %}
+<div class="success-box text-center">
+    <div class="success-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="var(--color-hs-kehl)" class="bi bi-check-circle" viewBox="0 0 16 16">
+          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+          <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
+        </svg>
+    </div>
+    <h2>Antwort übermittelt</h2>
+    <p>Vielen Dank für Ihr Feedback. Ihre Daten wurden sicher übertragen.</p>
+    <a href="{{ url_for('index') }}" class="btn-primary" style="margin-top: 20px; display: inline-block;">Zurück zur Startseite</a>
+</div>
+{% endblock %}

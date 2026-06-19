@@ -1,159 +1,118 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ask Alma - Admin Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        .dashboard-section {
-            margin-bottom: 40px;
-            padding: 20px;
-            background: #fff;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: var(--color-background-grey);
-        }
-        .btn-danger {
-            background-color: #d9534f;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .btn-danger:hover {
-            background-color: #c9302c;
-        }
-    </style>
-</head>
-<body>
-    <header class="app-header">
-        <div class="container">
-            <h1>Ask Alma - Admin Dashboard</h1>
-            <p><a href="{{ url_for('index') }}" style="color: #fff;">&larr; Zurück zur Startseite</a></p>
-        </div>
-    </header>
+{% extends "base.html" %}
 
-    <main class="container">
-        
-        <!-- Fehleranzeigen -->
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            <ul class="flashes" style="background: #f8d7da; color: #721c24; padding: 15px; list-style: none; margin-bottom: 20px; border-radius: 4px;">
-            {% for message in messages %}
-              <li>{{ message }}</li>
-            {% endfor %}
-            </ul>
-          {% endif %}
-        {% endwith %}
+{% block title %}Ask Alma - Admin Dashboard{% endblock %}
+{% block header_title %}Admin Dashboard{% endblock %}
+{% block header_subtitle %}Fragen und Ergebnisse verwalten{% endblock %}
+{% block header_actions %}
+<div style="margin-top: 15px;">
+    <a href="{{ url_for('index') }}" class="btn-outline-light">&larr; Zur Startseite</a>
+</div>
+{% endblock %}
 
-        <!-- Fragenverwaltung -->
-        <section class="dashboard-section">
+{% block content %}
+<div class="admin-grid">
+    <!-- Fragenverwaltung -->
+    <section class="dashboard-section card">
+        <div class="card-header">
             <h2>Fragen verwalten</h2>
-            
+        </div>
+        <div class="card-body">
             {% if survey %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Typ</th>
-                        <th>Label</th>
-                        <th>Aktion</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for q in survey.questions %}
-                    <tr>
-                        <td>{{ q.id }}</td>
-                        <td>{{ q.type }}</td>
-                        <td>{{ q.label }}</td>
-                        <td>
-                            <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST" style="margin: 0;">
-                                <button type="submit" class="btn-danger">Löschen</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p style="color: red;">Konnte Umfragedaten nicht vom Server laden.</p>
-            {% endif %}
-
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                <h3>Neue Frage hinzufügen</h3>
-                <form action="{{ url_for('add_question') }}" method="POST">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display:block; margin-bottom: 5px;">Fragen-ID (z.B. q11):</label>
-                        <input type="text" name="id" required style="width: 100%; padding: 8px;">
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label style="display:block; margin-bottom: 5px;">Typ:</label>
-                        <select name="type" required style="width: 100%; padding: 8px;">
-                            <option value="text">Freitext (text)</option>
-                            <option value="multiple_choice">Multiple Choice (multiple_choice)</option>
-                        </select>
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label style="display:block; margin-bottom: 5px;">Fragestellung (Label):</label>
-                        <input type="text" name="label" required style="width: 100%; padding: 8px;">
-                    </div>
-                    <button type="submit" class="btn-primary" style="padding: 10px 20px;">Hinzufügen</button>
-                </form>
-                <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Hinweis: Multiple-Choice-Optionen sind im einfachen V1-Dashboard fest codiert und bedürfen API-Anpassungen.</p>
-            </div>
-        </section>
-
-        <!-- Ergebnisse -->
-        <section class="dashboard-section">
-            <h2>Eingegangene Ergebnisse</h2>
-            {% if results != None %}
-                {% if results|length > 0 %}
-                <table>
+            <div class="table-responsive">
+                <table class="table">
                     <thead>
                         <tr>
-                            <th>Result ID</th>
-                            <th>Zeitstempel</th>
-                            <th>Antworten</th>
+                            <th>ID</th>
+                            <th>Typ</th>
+                            <th>Label</th>
+                            <th>Aktion</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for r in results %}
+                        {% for q in survey.questions %}
                         <tr>
-                            <td style="font-size: 0.8em; color: #555;">{{ r.result_id }}</td>
-                            <td>{{ r.received_at }}</td>
+                            <td><span class="badge">{{ q.id }}</span></td>
+                            <td><span class="badge badge-secondary">{{ q.type }}</span></td>
+                            <td class="td-label">{{ q.label }}</td>
                             <td>
-                                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em;">
-                                    {% for key, val in r.answers.items() %}
-                                    <li><strong>{{ key }}:</strong> {{ val }}</li>
-                                    {% endfor %}
-                                </ul>
+                                <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST" class="delete-form">
+                                    <button type="submit" class="btn-danger btn-sm">Löschen</button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+            {% else %}
+            <div class="alert alert-danger">Konnte Umfragedaten nicht vom Server laden. Läuft das Backend?</div>
+            {% endif %}
+
+            <div class="add-question-area">
+                <h3>Neue Frage hinzufügen</h3>
+                <form action="{{ url_for('add_question') }}" method="POST" class="add-question-form">
+                    <div class="form-group">
+                        <label>Fragen-ID (z.B. q11):</label>
+                        <input type="text" name="id" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Typ:</label>
+                        <select name="type" class="form-control" required>
+                            <option value="text">Freitext (text)</option>
+                            <option value="multiple_choice">Multiple Choice</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Fragestellung (Label):</label>
+                        <input type="text" name="label" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Hinzufügen</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Ergebnisse -->
+    <section class="dashboard-section card">
+        <div class="card-header">
+            <h2>Eingegangene Ergebnisse</h2>
+        </div>
+        <div class="card-body">
+            {% if results != None %}
+                {% if results|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Result ID</th>
+                                <th>Zeitstempel</th>
+                                <th>Antworten</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in results %}
+                            <tr>
+                                <td class="td-small text-muted">{{ r.result_id[:8] }}...</td>
+                                <td class="td-small">{{ r.received_at[:16] | replace('T', ' ') }}</td>
+                                <td>
+                                    <ul class="answers-list">
+                                        {% for key, val in r.answers.items() %}
+                                        <li><span class="q-key">{{ key }}:</span> <span class="q-val">{{ val }}</span></li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <p>Noch keine Ergebnisse vorhanden.</p>
+                <div class="alert alert-info">Noch keine Ergebnisse vorhanden.</div>
                 {% endif %}
             {% else %}
-                <p style="color: red;">Ergebnisse konnten nicht geladen werden oder der Server unterstützt /api/results noch nicht.</p>
+                <div class="alert alert-danger">Ergebnisse konnten nicht geladen werden. Backend unterstützt /api/results ggf. noch nicht.</div>
             {% endif %}
-        </section>
-
-    </main>
-</body>
-</html>
+        </div>
+    </section>
+</div>
+{% endblock %}

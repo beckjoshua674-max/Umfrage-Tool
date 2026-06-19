@@ -33,6 +33,11 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 ## 7. API-Schnittstellen (Frontend <-> Backend)
 Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
 
+**Sicherheitsvorgabe (JWT-Token):**
+- **Öffentliche Endpunkte (kein Token nötig):** `GET /api/health`, `POST /api/login`, `GET /api/survey`, `POST /api/results`.
+- **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich, nur Rolle `admin`):** `POST /api/survey/questions`, `DELETE /api/survey/questions/<id>`, `GET /api/results`.
+- Wird ein geschützter Endpunkt ohne oder mit ungültigem Token aufgerufen, muss das Backend mit `401 Unauthorized` antworten.
+
 ### 7.0 GET `/api/health`
 - **Beschreibung:** Liefert einen einfachen Betriebsstatus des Backends, damit Frontend und Entwicklung prüfen können, ob der Server erreichbar ist.
 - **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
@@ -45,9 +50,33 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   ```
 - **Statuscode:** `200 OK` bei erreichbarem Backend.
 
+### 7.0.1 POST `/api/login`
+- **Beschreibung:** Authentifiziert einen Benutzer. Aktuell ist nur die Admin-Rolle loginpflichtig.
+- **Erwarteter Payload (JSON):**
+  ```json
+  {
+    "username": "...",
+    "password": "..."
+  }
+  ```
+- **Test-Credentials (für Entwicklung):** Das Backend muss mindestens folgende Testbenutzer akzeptieren:
+  - `admin` / `admin123` (Rolle: `admin`)
+- **Erwartete Antwort:** Status `200 OK` mit JWT Token und der zugewiesenen Rolle.
+  ```json
+  {
+    "token": "jwt_token_xyz",
+    "role": "admin"
+  }
+  ```
+- **Fehlerantwort:** Status `401 Unauthorized`, wenn Login fehlschlägt.
+
 ### 7.1 GET `/api/survey`
-- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend.
-- **Erwartete Anfrage:** Optionaler Query-Parameter `?role=student|professor|admin`. Das Backend sollte die Fragen entsprechend der Zielgruppe filtern. Kein Request-Body.
+- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend. **Kein Token erforderlich.**
+- **Erwartete Anfrage:** Query-Parameter `?role=student|professor`. Das Backend **muss** je nach Rolle einen **unterschiedlichen Fragenkatalog** ausliefern. Kein Request-Body.
+- **Rollenbasierte Datendateien:** Das Backend lädt die Fragen aus getrennten JSON-Dateien:
+  - `backend/data/survey_student.json` → wird bei `?role=student` ausgeliefert.
+  - `backend/data/survey_professor.json` → wird bei `?role=professor` ausgeliefert.
+  - Fehlt der Parameter `role`, wird standardmäßig `survey_student.json` geladen.
 - **Erwartete Antwort (JSON):**
   ```json
   {
@@ -111,12 +140,14 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   ```
 
 ### 7.3 POST `/api/survey/questions`
-- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu. (Wird zur administrativen Verwaltung genutzt)
+- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu.
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
 - **Erwarteter Payload (JSON):** Ein einzelnes Frage-Objekt (ähnlich der Objekte in `GET /api/survey`).
 - **Erwartete Antwort:** Status `201 Created`.
 
 ### 7.4 DELETE `/api/survey/questions/<id>`
-- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID. (Wird zur administrativen Verwaltung genutzt)
+- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID.
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
 - **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
 
 ### 7.5 GET `/api/results`

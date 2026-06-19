@@ -1,84 +1,55 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ survey.title }}</title>
-    <!-- Verweist auf den static-Ordner in Flask -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <header class="app-header">
-        <div class="container">
-            <h1>{{ survey.title }}</h1>
-            <p>{{ survey.description }}</p>
-        </div>
-    </header>
+{% extends "base.html" %}
 
-    <main class="container">
-        <section id="survey-container" class="survey-box">
-            <!-- Fehleranzeigen via Flask Flash Messages (optional) -->
-            {% with messages = get_flashed_messages() %}
-              {% if messages %}
-                <ul class="flashes">
-                {% for message in messages %}
-                  <li style="color: red;">{{ message }}</li>
-                {% endfor %}
-                </ul>
-              {% endif %}
-            {% endwith %}
+{% block title %}{{ survey.title if survey else 'Ask Alma' }}{% endblock %}
+{% block header_title %}{{ survey.title if survey else 'Ask Alma - Evaluation' }}{% endblock %}
+{% block header_subtitle %}{{ survey.description if survey else 'Rolle: ' ~ role|capitalize }}{% endblock %}
 
-            <!-- Standard HTML-Formular, das via POST an /submit gesendet wird. Javascript ist hier verboten. -->
-            {% if survey %}
-            <form action="{{ url_for('submit') }}" method="POST">
-                
-                <!-- Verstecktes Feld, um die Umfrage-ID an das Backend zu übermitteln -->
-                <input type="hidden" name="survey_id" value="{{ survey.survey_id }}">
+{% block content %}
+<section id="survey-container" class="survey-box">
+    
+    {% if survey %}
+    <form action="{{ url_for('submit') }}" method="POST" class="modern-form">
+        
+        <input type="hidden" name="survey_id" value="{{ survey.survey_id }}">
 
-                <!-- Dynamische Schleife über alle Fragen aus der API (bzw. dem Mock) -->
-                {% for q in survey.questions %}
-                <div class="question-block" id="{{ q.id }}">
-                    
-                    {% if q.type == 'text' %}
-                        <!-- Freitext-Frage -->
-                        <label class="question-label" for="{{ q.id }}-input">{{ q.label }}</label>
-                        <textarea id="{{ q.id }}-input" name="{{ q.id }}" rows="4" placeholder="Ihre Antwort..." {% if q.required %}required{% endif %}></textarea>
-                    
-                    {% elif q.type == 'multiple_choice' %}
-                        <!-- Multiple-Choice-Frage -->
-                        <p class="question-label">{{ q.label }}</p>
-                        <div class="options">
-                            {% for opt in q.options %}
-                            <label class="option-label">
-                                <input type="radio" name="{{ q.id }}" value="{{ opt.value }}" {% if q.required %}required{% endif %}>
-                                {{ opt.text }}
-                            </label>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-
+        {% for q in survey.questions %}
+        <div class="question-block" id="{{ q.id }}">
+            
+            {% if q.type == 'text' %}
+                <label class="question-label" for="{{ q.id }}-input">{{ q.label }}</label>
+                <textarea class="form-control" id="{{ q.id }}-input" name="{{ q.id }}" rows="4" placeholder="Ihre Antwort..." {% if q.required %}required{% endif %}></textarea>
+            
+            {% elif q.type == 'multiple_choice' %}
+                <p class="question-label">{{ q.label }}</p>
+                <div class="options">
+                    {% for opt in q.options %}
+                    <label class="option-label">
+                        <input type="radio" name="{{ q.id }}" value="{{ opt.value }}" {% if q.required %}required{% endif %}>
+                        <span class="custom-radio"></span>
+                        {{ opt.text }}
+                    </label>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Umfrage absenden</button>
-                </div>
-            </form>
-            {% else %}
-            <div style="text-align: center; color: red; padding: 40px;">
-                <h2>Verbindung zum Server fehlgeschlagen</h2>
-                <p>Es können aktuell keine Fragen angezeigt werden. Bitte versuchen Sie es später erneut.</p>
-            </div>
             {% endif %}
 
-
-        </section>
-    </main>
-
-    <footer class="app-footer">
-        <div class="container">
-            <p>&copy; 2026 Hochschule Kehl - Verteilte Systeme</p>
         </div>
-    </footer>
-</body>
-</html>
+        {% endfor %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Umfrage absenden</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="error-container">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-exclamation-triangle" viewBox="0 0 16 16">
+          <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/>
+          <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995z"/>
+        </svg>
+        <h2>Verbindung zum Server fehlgeschlagen</h2>
+        <p>Es können aktuell keine Fragen angezeigt werden. Bitte versuchen Sie es später erneut.</p>
+        <a href="{{ url_for('index') }}" class="btn-secondary">Zurück zur Startseite</a>
+    </div>
+    {% endif %}
+
+</section>
+{% endblock %}
