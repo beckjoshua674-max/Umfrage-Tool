@@ -2,44 +2,85 @@
 
 {% block title %}{{ survey.title if survey else 'Ask Alma' }}{% endblock %}
 {% block header_title %}{{ survey.title if survey else 'Ask Alma - Evaluation' }}{% endblock %}
-{% block header_subtitle %}{{ survey.description if survey else 'Rolle: ' ~ role|capitalize }}{% endblock %}
+{% block header_subtitle %}{{ survey.description if survey else '' }}{% endblock %}
 
 {% block content %}
 <section id="survey-container" class="survey-box">
     
-    {% if survey %}
-    <form action="{{ url_for('submit') }}" method="POST" class="modern-form">
+    {% if survey and question %}
+    
+    <!-- Fortschrittsanzeige -->
+    <div class="progress-info">
+        <span class="progress-text">Frage {{ step + 1 }} von {{ total }}</span>
+        <span class="progress-percent">{{ (step / total * 100) | round(0) | int }}%</span>
+    </div>
+    <div class="progress-bar-track">
+        <div class="progress-bar-fill" style="width: {{ (step / total * 100) | round(1) }}%;"></div>
+    </div>
+
+    <!-- Einzelne Frage -->
+    <div class="question-block step-question">
         
-        <input type="hidden" name="survey_id" value="{{ survey.survey_id }}">
-
-        {% for q in survey.questions %}
-        <div class="question-block" id="{{ q.id }}">
+        {% if question.type == 'text' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
             
-            {% if q.type == 'text' %}
-                <label class="question-label" for="{{ q.id }}-input">{{ q.label }}</label>
-                <textarea class="form-control" id="{{ q.id }}-input" name="{{ q.id }}" rows="4" placeholder="Ihre Antwort..." {% if q.required %}required{% endif %}></textarea>
+            <label class="question-label" for="{{ question.id }}-input">{{ question.label }}</label>
+            <textarea class="form-control" id="{{ question.id }}-input" name="answer" rows="5" placeholder="Ihre Antwort..." {% if question.required %}required{% endif %}>{{ saved_answer }}</textarea>
             
-            {% elif q.type == 'multiple_choice' %}
-                <p class="question-label">{{ q.label }}</p>
-                <div class="options">
-                    {% for opt in q.options %}
-                    <label class="option-label">
-                        <input type="radio" name="{{ q.id }}" value="{{ opt.value }}" {% if q.required %}required{% endif %}>
-                        <span class="custom-radio"></span>
-                        {{ opt.text }}
-                    </label>
-                    {% endfor %}
-                </div>
-            {% endif %}
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                {% endif %}
+            </div>
+        </form>
+        
+        {% elif question.type == 'multiple_choice' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            
+            <p class="question-label">{{ question.label }}</p>
+            <div class="options">
+                {% for opt in question.options %}
+                <label class="option-label {% if saved_answer == opt.value %}option-selected{% endif %}">
+                    <input type="radio" name="answer" value="{{ opt.value }}" {% if question.required %}required{% endif %} {% if saved_answer == opt.value %}checked{% endif %}>
+                    <span class="custom-radio"></span>
+                    {{ opt.text }}
+                </label>
+                {% endfor %}
+            </div>
+            
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                {% endif %}
+            </div>
+        </form>
+        {% endif %}
 
-        </div>
-        {% endfor %}
-
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Umfrage absenden</button>
-        </div>
-    </form>
-    {% else %}
+    </div>
+    
+    {% elif not survey %}
     <div class="error-container">
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-exclamation-triangle" viewBox="0 0 16 16">
           <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/>

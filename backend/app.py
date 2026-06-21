@@ -13,7 +13,7 @@ RESULTS_DIR = DATA_DIR / "results"
 
 
 def lade_umfrage():
-    """Laedt die zentrale Umfragekonfiguration aus der Backend-Datenablage."""
+    """Lädt die zentrale Umfragekonfiguration aus der Backend-Datenablage."""
     with SURVEY_PATH.open("r", encoding="utf-8") as file:
         return json.load(file)
 
@@ -39,22 +39,22 @@ def schreibe_ergebnis(payload):
 
 
 def validiere_ergebnis_payload(payload):
-    """Prueft die Mindeststruktur fuer eingehende Umfrageantworten."""
+    """Prüft die Mindeststruktur für eingehende Umfrageantworten."""
     if not isinstance(payload, dict):
-        return "Der Request-Body muss ein JSON-Objekt sein."
+        return "Der Anfrage-Inhalt muss ein JSON-Objekt sein."
 
     if not isinstance(payload.get("survey_id"), str) or not payload["survey_id"].strip():
-        return "Das Feld 'survey_id' muss als nicht-leerer String uebergeben werden."
+        return "Das Feld 'survey_id' muss als nicht-leerer Text übergeben werden."
 
     if "timestamp" in payload and not isinstance(payload["timestamp"], str):
-        return "Das Feld 'timestamp' muss als ISO-8601-String uebergeben werden."
+        return "Das Feld 'timestamp' muss als ISO-8601-Zeichenkette übergeben werden."
 
     if not isinstance(payload.get("answers"), dict):
-        return "Das Feld 'answers' muss als Objekt mit Frage-IDs und Antworten uebergeben werden."
+        return "Das Feld 'answers' muss als Objekt mit Frage-IDs und Antworten übergeben werden."
 
     umfrage = lade_umfrage()
     if payload["survey_id"] != umfrage["survey_id"]:
-        return "Die uebergebene 'survey_id' ist fuer diese Backend-Konfiguration unbekannt."
+        return "Die übergebene 'survey_id' ist für diese Backend-Konfiguration unbekannt."
 
     fragen = {frage["id"]: frage for frage in umfrage.get("questions", [])}
     fehlende_pflichtfragen = [
@@ -74,15 +74,15 @@ def validiere_ergebnis_payload(payload):
         if frage["type"] == "multiple_choice":
             erlaubte_werte = {option["value"] for option in frage.get("options", [])}
             if antwort not in erlaubte_werte:
-                return f"Antwort fuer '{frage_id}' ist keine erlaubte Option."
+                return f"Antwort für '{frage_id}' ist keine erlaubte Option."
         elif frage["type"] == "text" and not isinstance(antwort, str):
-            return f"Antwort fuer '{frage_id}' muss ein String sein."
+            return f"Antwort für '{frage_id}' muss eine Zeichenkette sein."
 
     return None
 
 
 class ApiHandler(BaseHTTPRequestHandler):
-    """HTTP-Handler fuer die JSON-Schnittstellen des Backends."""
+    """HTTP-Handler für die JSON-Schnittstellen des Backends."""
 
     def _sende_json(self, status_code, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -138,9 +138,9 @@ class ApiHandler(BaseHTTPRequestHandler):
 
 
 def starte_server(host="0.0.0.0", port=8000):
-    """Startet den HTTP-Server fuer die Backend-API."""
+    """Startet den HTTP-Server für die Backend-API."""
     server = ThreadingHTTPServer((host, port), ApiHandler)
-    print(f"Ask-Alma-Backend laeuft auf http://{host}:{port}")
+    print(f"Ask-Alma-Backend läuft auf http://{host}:{port}")
     server.serve_forever()
 
 

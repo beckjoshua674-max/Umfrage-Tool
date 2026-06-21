@@ -14,8 +14,8 @@
       "type": "multiple_choice",
       "label": "2. Wie häufig nutzen Sie 'Ask Alma' im Rahmen Ihres Studiums?",
       "options": [
-        { "value": "taeglich", "text": "Täglich" },
-        { "value": "woechentlich", "text": "Mehrmals wöchentlich" },
+        { "value": "täglich", "text": "Täglich" },
+        { "value": "wöchentlich", "text": "Mehrmals wöchentlich" },
         { "value": "monatlich", "text": "Gelegentlich (mehrmals im Monat)" },
         { "value": "selten", "text": "Selten" },
         { "value": "nie", "text": "Noch nie" }
@@ -27,10 +27,10 @@
       "type": "multiple_choice",
       "label": "3. Wie bewerten Sie die generelle Nützlichkeit von 'Ask Alma' für Ihr Studium?",
       "options": [
-        { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
-        { "value": "eher_nuetzlich", "text": "Eher nützlich" },
-        { "value": "wenig_nuetzlich", "text": "Wenig nützlich" },
-        { "value": "gar_nicht_nuetzlich", "text": "Gar nicht nützlich" }
+        { "value": "sehr_nützlich", "text": "Sehr nützlich" },
+        { "value": "eher_nützlich", "text": "Eher nützlich" },
+        { "value": "wenig_nützlich", "text": "Wenig nützlich" },
+        { "value": "gar_nicht_nützlich", "text": "Gar nicht nützlich" }
       ],
       "required": true
     },
@@ -65,7 +65,7 @@
       "options": [
         { "value": "sehr_intuitiv", "text": "Sehr intuitiv" },
         { "value": "eher_intuitiv", "text": "Eher intuitiv" },
-        { "value": "gewoehnungsbeduerftig", "text": "Gewöhnungsbedürftig" },
+        { "value": "gewöhnungsbedürftig", "text": "Gewöhnungsbedürftig" },
         { "value": "kompliziert", "text": "Kompliziert" }
       ],
       "required": true

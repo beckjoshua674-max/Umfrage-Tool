@@ -96,41 +96,126 @@ def index():
 
 @app.route('/survey', methods=['GET'])
 def survey():
-    """Lädt die Umfrage spezifisch für die gewählte Rolle."""
+    """Lädt die Umfrage und zeigt eine einzelne Frage basierend auf dem Schritt an."""
     role = request.args.get('role', 'student')
+    step = request.args.get('step', 0, type=int)
     
-    try:
-        response = requests.get(f"{BACKEND_API_URL}/survey?role={role}", headers=get_auth_headers())
-        if response.status_code == 401:
-            session.clear()
-            flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
-            return redirect(url_for('login_page', role=role))
-            
-        response.raise_for_status()
-        survey_data = response.json()
-    except Exception as e:
-        print(f"Fehler beim Abrufen der Umfrage: {e}")
-        survey_data = None
+    # Umfragedaten vom Backend laden und in der Session cachen
+    # Beim ersten Aufruf (step=0) oder wenn keine Daten in der Session liegen
+    if step == 0 or 'survey_data' not in session:
+        try:
+            response = requests.get(f"{BACKEND_API_URL}/survey?role={role}", headers=get_auth_headers())
+            if response.status_code == 401:
+                session.clear()
+                flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
+                return redirect(url_for('login_page', role=role))
+            response.raise_for_status()
+            survey_data = response.json()
+            # Umfrage und leeres Antwort-Dict in Session speichern
+            session['survey_data'] = survey_data
+            session['survey_role'] = role
+            if step == 0:
+                session['survey_answers'] = {}
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Umfrage: {e}")
+            return render_template('index.html', survey=None, role=role,
+                                   question=None, step=0, total=0)
     
-    return render_template('index.html', survey=survey_data, role=role)
+    survey_data = session.get('survey_data')
+    if not survey_data:
+        return render_template('index.html', survey=None, role=role,
+                               question=None, step=0, total=0)
+    
+    questions = survey_data.get('questions', [])
+    total = len(questions)
+    
+    # Sicherheitscheck: Schritt im gültigen Bereich?
+    if step < 0 or step >= total:
+        step = 0
+    
+    current_question = questions[step]
+    # Bereits gespeicherte Antwort für diese Frage vorladen
+    saved_answer = session.get('survey_answers', {}).get(current_question['id'], '')
+    
+    return render_template('index.html',
+                           survey=survey_data,
+                           question=current_question,
+                           saved_answer=saved_answer,
+                           step=step,
+                           total=total,
+                           role=role)
 
-@app.route('/submit', methods=['POST'])
-def submit():
-    """Sendet ausgefüllte Umfrage an Backend."""
-    form_data = request.form.to_dict()
-    survey_id = form_data.pop('survey_id', 'unknown_survey')
+@app.route('/survey/next', methods=['POST'])
+def survey_next():
+    """Speichert die aktuelle Antwort in der Session und geht zur nächsten Frage."""
+    role = request.form.get('role', 'student')
+    step = request.form.get('step', 0, type=int)
+    question_id = request.form.get('question_id', '')
+    answer = request.form.get('answer', '').strip()
+    
+    # Antwort in Session speichern
+    answers = session.get('survey_answers', {})
+    if answer:
+        answers[question_id] = answer
+    session['survey_answers'] = answers
+    
+    survey_data = session.get('survey_data')
+    if not survey_data:
+        flash("Sitzung abgelaufen. Bitte starten Sie die Umfrage erneut.")
+        return redirect(url_for('index'))
+    
+    total = len(survey_data.get('questions', []))
+    next_step = step + 1
+    
+    # Letzte Frage erreicht? -> Absenden
+    if next_step >= total:
+        return redirect(url_for('survey_submit'))
+    
+    return redirect(url_for('survey', role=role, step=next_step))
+
+@app.route('/survey/back', methods=['POST'])
+def survey_back():
+    """Speichert die aktuelle Antwort und geht eine Frage zurück."""
+    role = request.form.get('role', 'student')
+    step = request.form.get('step', 0, type=int)
+    question_id = request.form.get('question_id', '')
+    answer = request.form.get('answer', '').strip()
+    
+    # Auch beim Zurückgehen die aktuelle Antwort speichern
+    answers = session.get('survey_answers', {})
+    if answer:
+        answers[question_id] = answer
+    session['survey_answers'] = answers
+    
+    prev_step = max(0, step - 1)
+    return redirect(url_for('survey', role=role, step=prev_step))
+
+@app.route('/survey/submit', methods=['GET'])
+def survey_submit():
+    """Sendet alle gesammelten Antworten aus der Session an das Backend."""
+    survey_data = session.get('survey_data')
+    answers = session.get('survey_answers', {})
+    
+    if not survey_data:
+        flash("Keine Umfragedaten gefunden. Bitte starten Sie erneut.")
+        return redirect(url_for('index'))
     
     payload = {
-        "survey_id": survey_id,
+        "survey_id": survey_data.get('survey_id', 'unknown'),
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        "answers": form_data
+        "answers": answers
     }
     
     try:
         requests.post(f"{BACKEND_API_URL}/results", json=payload, headers=get_auth_headers())
     except Exception as e:
         print(f"Warnung: Fehler beim Senden ({e}).")
-        
+    
+    # Session-Daten der Umfrage bereinigen
+    session.pop('survey_data', None)
+    session.pop('survey_answers', None)
+    session.pop('survey_role', None)
+    
     return render_template('success.html')
 
 # ==============================================================
