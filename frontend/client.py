@@ -35,6 +35,11 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Test-Zugangsdaten für den Entwicklungsmodus (solange das Backend /api/login noch nicht unterstützt)
+DEV_TEST_USERS = {
+    "admin": {"password": "admin123", "role": "admin"},
+}
+
 # ==============================================================
 # Routen: Login & Session
 # ==============================================================
@@ -48,35 +53,60 @@ def login_page():
 
 @app.route('/login', methods=['POST'])
 def login():
-    """Sendet Credentials an Backend und speichert JWT Token in der Session."""
+    """Sendet Credentials an Backend und speichert JWT Token in der Session.
+    Fallback: Wenn das Backend /api/login nicht bereitstellt, werden
+    lokale Test-Zugangsdaten aus DEV_TEST_USERS akzeptiert."""
     username = request.form.get('username')
     password = request.form.get('password')
     desired_role = request.form.get('role', 'student')
     
+    # Versuch 1: Login über das Backend (Produktivmodus)
+    backend_erreichbar = False
     try:
         response = requests.post(f"{BACKEND_API_URL}/login", json={
             "username": username,
             "password": password
-        })
+        }, timeout=3)
+        backend_erreichbar = True
         
         if response.ok:
             data = response.json()
             session['token'] = data.get('token')
+            session['role'] = data.get('role', desired_role)
             session['username'] = username
             flash("Erfolgreich eingeloggt.")
             
-            # Routing nach erfolgreichem Login
-            if desired_role == 'admin':
+            if session['role'] == 'admin':
                 return redirect(url_for('admin'))
             else:
-                return redirect(url_for('survey', role=desired_role))
+                return redirect(url_for('survey', role=session['role']))
+        
+        # Backend hat geantwortet, aber Route existiert nicht (404) → Fallback nutzen
+        if response.status_code == 404:
+            backend_erreichbar = False
         else:
             flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.")
             return redirect(url_for('login_page', role=desired_role))
             
-    except Exception as e:
-        flash(f"Fehler: Backend nicht erreichbar ({e}).")
-        return redirect(url_for('login_page', role=desired_role))
+    except Exception:
+        backend_erreichbar = False
+    
+    # Versuch 2: Lokale Test-Zugangsdaten (Entwicklungsmodus)
+    if not backend_erreichbar:
+        test_user = DEV_TEST_USERS.get(username)
+        if test_user and test_user["password"] == password:
+            session['token'] = f"dev-token-{username}"
+            session['role'] = test_user["role"]
+            session['username'] = username
+            flash(f"Eingeloggt als {username} (Entwicklungsmodus).")
+            
+            if test_user["role"] == 'admin':
+                return redirect(url_for('admin'))
+            else:
+                return redirect(url_for('survey', role=test_user["role"]))
+    
+    flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.")
+    return redirect(url_for('login_page', role=desired_role))
 
 @app.route('/logout')
 def logout():
