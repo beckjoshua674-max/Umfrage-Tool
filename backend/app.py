@@ -8,7 +8,8 @@ from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-SURVEY_PATH = DATA_DIR / "survey.json"
+MOCK_DATA_DIR = BASE_DIR / "mock-data"
+SURVEY_PATH = MOCK_DATA_DIR / "survey-questions.json"
 RESULTS_DIR = DATA_DIR / "results"
 
 

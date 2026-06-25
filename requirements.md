@@ -111,6 +111,8 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   ```
 
 ## 8. Abhängigkeiten (Backend)
+Hinweis (übernommen aus `backend/requirements.txt`): Keine externen Python-Pakete erforderlich. Das Backend nutzt nur die Python-Standardbibliothek.
+
 Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:
 ```text
 Python >= 3.10
