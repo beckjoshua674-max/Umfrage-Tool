@@ -152,6 +152,7 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
 
 ### 7.5 GET `/api/results`
 - **Beschreibung:** Liefert alle bisher gespeicherten Umfrage-Antworten. (Wird im Admin-Dashboard genutzt)
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. JWT-Token im Header erforderlich.
 - **Erwartete Antwort (JSON):** Array von Ergebnis-Objekten.
   ```json
   [
@@ -166,6 +167,46 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
     }
   ]
   ```
+
+### 7.6 POST `/api/surveys/create`
+- **Beschreibung:** Speichert eine vollständige, neu erstellte Umfrage-Definition (erstellt via SurveyJS Creator im Admin-Bereich) als neue JSON-Datei im Backend. Ersetzt oder ergänzt die rollenbasierten Survey-Dateien.
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. JWT-Token im Header `Authorization: Bearer <token>` erforderlich. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei falscher Rolle → `403 Forbidden`.
+- **Content-Type:** `application/json`
+- **Erwarteter Payload (JSON):** Ein vollständiges SurveyJS-kompatibles JSON-Objekt mit mind. folgenden Feldern:
+  ```json
+  {
+    "survey_id": "eindeutige-id-als-string",
+    "title": "Titel der Umfrage",
+    "role": "student|professor",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text|multiple_choice",
+        "label": "Fragetext",
+        "required": true,
+        "options": [
+          { "value": "opt1", "text": "Anzeigetext" }
+        ]
+      }
+    ]
+  }
+  ```
+  - `survey_id`: Pflichtfeld. Nicht-leerer String. Wird als Dateiname verwendet (z.B. `survey_{role}.json`).
+  - `role`: Pflichtfeld. Muss `student` oder `professor` sein. Bestimmt, welche Datei überschrieben wird (`survey_student.json` oder `survey_professor.json`).
+  - `title`: Pflichtfeld. Nicht-leerer String.
+  - `questions`: Pflichtfeld. Array mit mind. 1 Frage-Objekt.
+- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
+  ```json
+  {
+    "status": "created",
+    "survey_id": "eindeutige-id",
+    "saved_as": "survey_student.json"
+  }
+  ```
+- **Fehlerantworten:**
+  - `400 Bad Request`: Payload fehlt oder ist unvollständig.
+  - `401 Unauthorized`: Token fehlt oder ist ungültig.
+  - `403 Forbidden`: Rolle ist nicht `admin`.
 
 ## 8. Abhängigkeiten (Backend)
 Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:

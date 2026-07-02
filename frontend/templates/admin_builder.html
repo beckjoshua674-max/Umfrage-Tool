@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Ask Alma - Umfrage-Editor{% endblock %}
+{% block header_title %}Umfrage-Editor{% endblock %}
+{% block header_subtitle %}Neue Umfrage visuell erstellen und direkt an den Server senden{% endblock %}
+
+{% block content %}
+
+<!-- ===========================================================
+     SurveyJS Creator – Admin-Bereich
+     JavaScript ist hier ausnahmsweise erlaubt (vgl. agents.md)
+     Zweck: Visuelle Erstellung von Umfragen via SurveyJS CDN
+     Paket: survey-creator-knockout (Vanilla JS, kein Framework)
+     =========================================================== -->
+
+<!-- Fehler 4 (behoben): Korrekte CSS-Reihenfolge für Knockout-Paket -->
+<link href="https://unpkg.com/survey-knockout/defaultV2.min.css" rel="stylesheet">
+<link href="https://unpkg.com/survey-creator-core/survey-creator-core.min.css" rel="stylesheet">
+
+<!-- Steuerleiste über dem Editor -->
+<div class="builder-toolbar">
+    <div class="builder-toolbar-left">
+        <label for="survey-role-select" class="builder-label">Zielgruppe der Umfrage:</label>
+        <select id="survey-role-select" class="form-control builder-select">
+            <option value="student">Studenten</option>
+            <option value="professor">Professoren</option>
+        </select>
+    </div>
+    <div class="builder-toolbar-right">
+        <button id="btn-speichern" class="btn-primary">
+            &#128190; Umfrage speichern
+        </button>
+        <a href="{{ url_for('admin') }}" class="btn-secondary" style="margin-left: 10px;">
+            &larr; Zurück zum Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Status-Meldung (wird per JS befüllt) -->
+<div id="builder-status" class="builder-status" style="display: none;"></div>
+
+<!-- SurveyJS Creator Container -->
+<div id="survey-creator-container"></div>
+
+<!-- Fehler 1 & 2 (behoben): Korrekte Skript-Ladereihenfolge für Vanilla JS / Knockout -->
+<!-- 1. Datenschicht (survey-core) -->
+<script src="https://unpkg.com/survey-core/survey.core.min.js"></script>
+<!-- 2. Knockout-Laufzeit (fehlte bisher komplett – war Fehler 2) -->
+<script src="https://unpkg.com/survey-knockout/survey-knockout.min.js"></script>
+<!-- 3. Creator-Datenschicht -->
+<script src="https://unpkg.com/survey-creator-core/survey-creator-core.min.js"></script>
+<!-- 4. Creator-UI für Knockout/Vanilla JS (ersetzt das falsche survey-creator-react – war Fehler 1) -->
+<script src="https://unpkg.com/survey-creator-knockout/survey-creator-knockout.min.js"></script>
+
+<script>
+    // -------------------------------------------------------
+    // Hilfsfunktion: Status-Meldung anzeigen
+    // -------------------------------------------------------
+    function zeigeStatus(nachricht, typ) {
+        var statusDiv = document.getElementById("builder-status");
+        statusDiv.textContent = nachricht;
+        statusDiv.className = "builder-status builder-status-" + typ;
+        statusDiv.style.display = "block";
+
+        // Meldung nach 5 Sekunden automatisch ausblenden
+        setTimeout(function () {
+            statusDiv.style.display = "none";
+        }, 5000);
+    }
+
+    // -------------------------------------------------------
+    // SurveyJS Creator initialisieren
+    // -------------------------------------------------------
+    var erstellungsOptionen = {
+        showLogicTab: false,       // Logik-Tab ausblenden (zu komplex für unseren Anwendungsfall)
+        showTranslationTab: false, // Übersetzungs-Tab ausblenden
+        isAutoSave: false,         // Kein Auto-Save – nur manuelles Speichern
+        showSaveButton: false,     // Eigener Speicher-Button wird verwendet
+        questionTypes: ["text", "checkbox", "radiogroup", "rating", "comment"],
+    };
+
+    // Fehler 3 (behoben): Korrekter Namespace SurveyCreatorKnockout statt SurveyCreator
+    var creator = new SurveyCreatorKnockout.SurveyCreator(erstellungsOptionen);
+
+    // Startkonfiguration: leere Umfrage mit deutschem Platzhalter
+    creator.JSON = {
+        title: "Neue Ask-Alma-Umfrage",
+        description: "Bitte füllen Sie alle Fragen aus.",
+        pages: [{ name: "Seite 1", elements: [] }]
+    };
+
+    // Fehler 5 (behoben): render() mit DOM-Element statt String (verhindert deprecation-Warnung)
+    creator.render(document.getElementById("survey-creator-container"));
+
+    // -------------------------------------------------------
+    // Corporate Design: HS Kehl Farbe (#2160a6) anwenden
+    // SurveyJS nutzt CSS-Variablen – wir überschreiben die primären Farben
+    // -------------------------------------------------------
+    var stilElement = document.createElement("style");
+    stilElement.textContent = `
+        /* HS-Kehl Blau als primäre Akzentfarbe im SurveyJS Creator */
+        :root {
+            --sjs-primary-backcolor: #2160a6;
+            --sjs-primary-backcolor-dark: #18487e;
+            --sjs-primary-forecolor: #ffffff;
+            --sjs-primary-backcolor-light: rgba(33, 96, 166, 0.1);
+            --sjs-special-red: #e74c3c;
+        }
+        /* Creator-Container: volle Höhe und kein Randabstand */
+        #survey-creator-container {
+            height: 80vh;
+            min-height: 600px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    `;
+    document.head.appendChild(stilElement);
+
+    // -------------------------------------------------------
+    // Speichern-Button: Sendet JSON via Fetch-API an das Backend
+    // Endpunkt: POST /admin/surveys/create (vgl. requirements.md 7.6)
+    // -------------------------------------------------------
+    document.getElementById("btn-speichern").addEventListener("click", function () {
+        var umfrageJSON = creator.JSON;
+        var zielgruppe = document.getElementById("survey-role-select").value;
+
+        // Pflichtfeld-Prüfung im Frontend
+        if (!umfrageJSON || !umfrageJSON.title) {
+            zeigeStatus("Fehler: Die Umfrage hat keinen Titel. Bitte einen Titel vergeben.", "fehler");
+            return;
+        }
+
+        // SurveyJS-Struktur in unser internes Format konvertieren
+        // SurveyJS verwendet "pages > elements", wir benötigen ein flaches "questions"-Array
+        var fragen = [];
+        if (umfrageJSON.pages) {
+            umfrageJSON.pages.forEach(function (seite) {
+                if (seite.elements) {
+                    seite.elements.forEach(function (element) {
+                        var frage = {
+                            id: element.name || ("q" + (fragen.length + 1)),
+                            type: element.type === "radiogroup" ? "multiple_choice" : "text",
+                            label: element.title || element.name,
+                            required: element.isRequired || false
+                        };
+
+                        // Antwortoptionen für Multiple-Choice-Fragen übernehmen
+                        if (element.type === "radiogroup" && element.choices) {
+                            frage.options = element.choices.map(function (auswahl) {
+                                return {
+                                    value: (typeof auswahl === "string") ? auswahl : auswahl.value,
+                                    text: (typeof auswahl === "string") ? auswahl : (auswahl.text || auswahl.value)
+                                };
+                            });
+                        }
+                        fragen.push(frage);
+                    });
+                }
+            });
+        }
+
+        // Nutzlast für den Backend-Endpunkt zusammenstellen (vgl. requirements.md 7.6)
+        var nutzlast = {
+            survey_id: "ask_alma_" + zielgruppe + "_v" + Date.now(),
+            title: umfrageJSON.title,
+            description: umfrageJSON.description || "",
+            role: zielgruppe,
+            questions: fragen
+        };
+
+        // Proxy-Endpunkt im Frontend übernimmt die Token-Weiterleitung ans Backend
+        fetch("/admin/surveys/create", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(nutzlast)
+        })
+        .then(function (antwort) {
+            if (antwort.ok) {
+                return antwort.json().then(function (daten) {
+                    zeigeStatus(
+                        "Umfrage '" + nutzlast.title + "' für Zielgruppe '" + zielgruppe + "' erfolgreich gespeichert!",
+                        "erfolg"
+                    );
+                });
+            } else {
+                return antwort.json().then(function (fehlerDaten) {
+                    zeigeStatus(
+                        "Fehler beim Speichern: " + (fehlerDaten.message || antwort.status),
+                        "fehler"
+                    );
+                });
+            }
+        })
+        .catch(function (netzwerkFehler) {
+            zeigeStatus("Netzwerkfehler: Backend nicht erreichbar. " + netzwerkFehler, "fehler");
+        });
+    });
+</script>
+
+{% endblock %}

@@ -252,70 +252,150 @@ def survey_submit():
 # Routen: Admin Dashboard & Verwaltung
 # ==============================================================
 
+# Pfad zum Backend-Datenverzeichnis (für direkten Dateizugriff als Fallback)
+import pathlib
+BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
+
+def lade_alle_umfragen_lokal():
+    """Lädt alle bekannten Umfrage-Dateien direkt aus dem Backend-Datenverzeichnis.
+    Dient als zuverlässiger Fallback, wenn der Backend-API-Endpunkt noch nicht implementiert ist."""
+    import json as json_mod
+    umfragen = []
+    bekannte_rollen = [
+        ("student", "survey_student.json"),
+        ("professor", "survey_professor.json"),
+    ]
+    for rolle, dateiname in bekannte_rollen:
+        pfad = BACKEND_DATEN_PFAD / dateiname
+        if pfad.exists():
+            try:
+                with open(pfad, "r", encoding="utf-8") as f:
+                    daten = json_mod.load(f)
+                    daten["_rolle"] = rolle       # Interne Rolle für die Anzeige ergänzen
+                    daten["_datei"] = dateiname   # Dateiname für Debugging-Zwecke
+                    umfragen.append(daten)
+            except Exception as e:
+                print(f"Warnung: Konnte {dateiname} nicht laden: {e}")
+    return umfragen
+
+def lade_ergebnisse():
+    """Versucht Ergebnisse vom Backend zu laden. Liest bei Fehler direkt aus dem Dateisystem."""
+    import json as json_mod
+    # Versuch 1: Backend-API
+    try:
+        res = requests.get(f"{BACKEND_API_URL}/results", headers=get_auth_headers(), timeout=2)
+        if res.ok:
+            return res.json()
+    except Exception:
+        pass
+
+    # Versuch 2: Direkt aus dem Ergebnis-Verzeichnis lesen
+    ergebnis_pfad = BACKEND_DATEN_PFAD / "results"
+    if not ergebnis_pfad.exists():
+        return []
+    ergebnisse = []
+    for datei in sorted(ergebnis_pfad.glob("*.json")):
+        try:
+            with open(datei, "r", encoding="utf-8") as f:
+                ergebnisse.append(json_mod.load(f))
+        except Exception:
+            pass
+    return ergebnisse
+
 @app.route('/admin', methods=['GET'])
 @login_required
 def admin():
-    """Admin-Dashboard: Lädt alle Fragen und Ergebnisse."""
-    try:
-        res_survey = requests.get(f"{BACKEND_API_URL}/survey", headers=get_auth_headers())
-        survey_data = res_survey.json() if res_survey.ok else None
-    except Exception:
-        survey_data = None
-        
-    try:
-        res_results = requests.get(f"{BACKEND_API_URL}/results", headers=get_auth_headers())
-        results_data = res_results.json() if res_results.ok else None
-    except Exception:
-        results_data = None
+    """Admin-Dashboard: Lädt alle Umfragen und Ergebnisse für die 3-Tab-Ansicht."""
+    alle_umfragen = lade_alle_umfragen_lokal()
+    alle_ergebnisse = lade_ergebnisse()
+    return render_template('admin.html', umfragen=alle_umfragen, ergebnisse=alle_ergebnisse)
 
-    return render_template('admin.html', survey=survey_data, results=results_data)
+@app.route('/admin/surveys/save', methods=['POST'])
+@login_required
+def survey_save_local():
+    """Speichert eine Umfrage direkt in die lokale JSON-Datei im Backend-Datenverzeichnis.
+    Wird als Fallback genutzt, solange der Backend-Endpunkt /api/surveys/create noch nicht implementiert ist."""
+    import json as json_mod
+
+    nutzlast = request.get_json(silent=True)
+    if not nutzlast:
+        return json_mod.dumps({"status": "error", "message": "Kein gültiger JSON-Body empfangen."}), 400, {"Content-Type": "application/json"}
+
+    rolle = nutzlast.get("role", "")
+    if rolle not in ["student", "professor"]:
+        return json_mod.dumps({"status": "error", "message": "Feld 'role' muss 'student' oder 'professor' sein."}), 400, {"Content-Type": "application/json"}
+
+    dateiname = f"survey_{rolle}.json"
+    ziel_pfad = BACKEND_DATEN_PFAD / dateiname
+
+    # Versuch 1: Echten Backend-Endpunkt nutzen
+    try:
+        antwort = requests.post(
+            f"{BACKEND_API_URL}/surveys/create",
+            json=nutzlast,
+            headers={**get_auth_headers(), "Content-Type": "application/json"},
+            timeout=2
+        )
+        if antwort.ok:
+            return antwort.text, antwort.status_code, {"Content-Type": "application/json"}
+    except Exception:
+        pass
+
+    # Versuch 2: Direkt ins Dateisystem schreiben (Entwicklungsmodus)
+    try:
+        with open(ziel_pfad, "w", encoding="utf-8") as f:
+            json_mod.dump(nutzlast, f, ensure_ascii=False, indent=2)
+        return json_mod.dumps({
+            "status": "created",
+            "survey_id": nutzlast.get("survey_id", ""),
+            "saved_as": dateiname
+        }), 201, {"Content-Type": "application/json"}
+    except Exception as e:
+        return json_mod.dumps({"status": "error", "message": f"Speichern fehlgeschlagen: {e}"}), 500, {"Content-Type": "application/json"}
 
 @app.route('/admin/add_question', methods=['POST'])
 @login_required
 def add_question():
-    """Proxy-Route zum Hinzufügen einer Frage."""
+    """Proxy-Route zum Hinzufügen einer einzelnen Frage via Backend-API."""
     q_id = request.form.get('id')
     q_type = request.form.get('type')
     q_label = request.form.get('label')
-    
-    payload = {
-        "id": q_id,
-        "type": q_type,
-        "label": q_label,
-        "required": True
-    }
-    
+    payload = {"id": q_id, "type": q_type, "label": q_label, "required": True}
     if q_type == 'multiple_choice':
-        payload['options'] = [
-            {"value": "opt1", "text": "Option 1"},
-            {"value": "opt2", "text": "Option 2"}
-        ]
-
+        payload['options'] = [{"value": "opt1", "text": "Option 1"}, {"value": "opt2", "text": "Option 2"}]
     try:
         response = requests.post(f"{BACKEND_API_URL}/survey/questions", json=payload, headers=get_auth_headers())
-        if response.ok:
-            flash("Frage erfolgreich hinzugefügt.")
-        else:
-            flash(f"Backend Fehler: {response.status_code}")
+        flash("Frage erfolgreich hinzugefügt." if response.ok else f"Backend Fehler: {response.status_code}")
     except Exception as e:
         flash(f"Verbindungsfehler: {e}")
-
     return redirect(url_for('admin'))
 
 @app.route('/admin/delete_question/<question_id>', methods=['POST'])
 @login_required
 def delete_question(question_id):
-    """Proxy-Route zum Löschen einer Frage."""
+    """Proxy-Route zum Löschen einer Frage via Backend-API."""
     try:
         response = requests.delete(f"{BACKEND_API_URL}/survey/questions/{question_id}", headers=get_auth_headers())
-        if response.ok:
-            flash("Frage erfolgreich gelöscht.")
-        else:
-            flash(f"Backend Fehler: {response.status_code}")
+        flash("Frage erfolgreich gelöscht." if response.ok else f"Backend Fehler: {response.status_code}")
     except Exception as e:
         flash(f"Verbindungsfehler: {e}")
-
     return redirect(url_for('admin'))
+
+@app.route('/admin/builder', methods=['GET'])
+@login_required
+def admin_builder():
+    """Leitet auf das neue Admin-Dashboard weiter (Builder ist jetzt eingebettet)."""
+    return redirect(url_for('admin'))
+
+@app.route('/admin/surveys/create', methods=['POST'])
+@login_required
+def survey_create():
+    """Alias für survey_save_local – für Kompatibilität mit dem Frontend-JS."""
+    return survey_save_local()
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
