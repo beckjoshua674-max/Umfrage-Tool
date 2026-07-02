@@ -220,3 +220,39 @@ Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt:
 Flask==3.0.3
 requests==2.31.0
 ```
+
+## 10. Zustandsverwaltung (State Management)
+Das System erzwingt eine strikte Trennung der Zustände (State), um die Architekturprinzipien verteilter Systeme einzuhalten:
+
+**Server (Backend / Single Source of Truth):**
+- **Umfragen:** Definition und Struktur der fertigen Umfragen (JSON).
+- **Ergebnisse:** Die finalen Daten der vollständig abgeschlossenen Umfragen.
+- **Hinweis:** Das Backend agiert für die eigentliche Durchführung komplett zustandslos (stateless).
+
+**Server (Frontend / Flask):**
+- **Sitzungszustand:** Verwaltung der laufenden Nutzersitzungen (via Session-Cookie).
+- **In Bearbeitung:** Temporäre Speicherung der Antworten von noch nicht abgeschlossenen Umfragen (Drafts).
+- **Fortschritt:** Tracking, welche Frage aktuell bearbeitet wird und ob alle Bedingungen erfüllt wurden.
+- **Autorisierung:** Rollenverwaltung (Sicherstellung der Admin-Rechte für den Editor).
+- **Versionskontrolle:** Abgleich der Umfrageversion während der Bearbeitung, um Konflikte bei zeitgleichen Änderungen zu vermeiden.
+
+**Client (Normaler Nutzer):**
+- **Flüchtiger UI-Zustand:** Die aktuellen Eingaben liegen nur im Arbeitsspeicher des Browsers, bis auf „Weiter" oder „Absenden" geklickt wird.
+- **Missbrauchsschutz (Cookies):** Nach erfolgreicher Teilnahme setzt Flask ein lokales Cookie (z. B. `survey_completed_<survey_id>=true` für 30 Tage), um einfache Mehrfachteilnahmen ohne Login-Zwang zu blockieren (Frictionless Security).
+
+**Client (Admin):**
+- **Editor-Zustand:** Hält die Struktur und die Fragen von im Aufbau befindlichen, nicht finalen Umfragen im Arbeitsspeicher des Browsers (via SurveyJS), bis diese gespeichert und ans Backend gesendet werden.
+
+## 11. Ablaufsteuerung & Datenvalidierung (Server-Side Enforcement)
+Um die Datenintegrität sicherzustellen und Manipulationen durch den Endnutzer (z. B. URL-Spoofing, Überspringen von Fragen) zu verhindern, gelten folgende serverseitige Regeln für den Frontend-Server (Flask):
+
+**Schutz vor URL-Manipulation (Route Guarding):**
+Flask speichert den Fortschritt des Nutzers strikt in der serverseitigen Nutzersession (z. B. `current_page = 1`).
+Versucht ein Nutzer, über die URL eine Seite aufzurufen, die er noch nicht erreicht hat (z. B. manueller Aufruf von `/survey/page/3`, obwohl er auf Seite 1 ist), leitet Flask ihn automatisch via HTTP 302 Redirect auf seine korrekte `current_page` zurück. Dies geschieht reibungslos und unsichtbar.
+
+**Serverseitige Pflichtfeld-Prüfung:**
+HTML5-Validierungen (`<input required>`) dienen nur der visuellen Nutzerführung und gelten als unsicher ("Never trust the client").
+Bei jedem Formular-Submit prüft die Flask-Route die empfangenen Daten zwingend gegen die Original-JSON-Definition der Umfrage. Fehlt die Antwort auf eine Pflichtfrage, wird der Fortschritt verweigert und die aktuelle Seite mit einer entsprechenden Fehlermeldung neu gerendert.
+
+**Payload-Integrität beim Abschluss:**
+Erst wenn Flask intern verifiziert hat, dass alle Seiten der Umfrage linear durchlaufen und alle Pflichtfelder beantwortet wurden, darf der gesammelte Zustand als finaler Payload an das Backend (`POST /api/results`) gesendet werden.

@@ -20,7 +20,14 @@
 
     <!-- Einzelne Frage -->
     <div class="question-block step-question">
-        
+
+        <!-- Serverseitige Fehlermeldung (Pflichtfeld nicht ausgefüllt, vgl. requirements.md Kap. 11) -->
+        {% if fehler %}
+        <div class="alert alert-danger" role="alert" style="margin-bottom: 16px;">
+            <strong>&#9888; Pflichtfeld:</strong> {{ fehler }}
+        </div>
+        {% endif %}
+
         {% if question.type == 'text' %}
         <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
             <input type="hidden" name="role" value="{{ role }}">

@@ -116,7 +116,39 @@ def logout():
     return redirect(url_for('index'))
 
 # ==============================================================
-# Routen: Umfrage
+# Hilfsfunktionen: Umfrage-Validierung (vgl. requirements.md Kap. 11)
+# ==============================================================
+
+def pruefe_pflichtfeld(frage, antwort):
+    """Prüft serverseitig, ob eine Pflichtfrage beantwortet wurde.
+    Gibt None zurück wenn gültig, sonst eine deutsche Fehlermeldung.
+    HTML5-required gilt nur als visuelle Hilfe – nie als Sicherheitsmerkmal!"""
+    if not frage.get('required', False):
+        return None  # Keine Pflichtfrage → immer gültig
+    if not antwort or not antwort.strip():
+        return "Bitte beantworten Sie diese Pflichtfrage, bevor Sie fortfahren."
+    return None  # Antwort vorhanden → gültig
+
+def pruefe_payload_integritaet(survey_data, answers):
+    """Prüft, ob alle Pflichtfragen der Umfrage beantwortet wurden.
+    Wird vor dem finalen Absenden an das Backend aufgerufen (vgl. Kap. 11).
+    Gibt eine Liste fehlender Fragen-IDs zurück (leer = alles in Ordnung)."""
+    fehlende = []
+    for frage in survey_data.get('questions', []):
+        if frage.get('required', False):
+            antwort = answers.get(frage['id'], '').strip()
+            if not antwort:
+                fehlende.append(frage['id'])
+    return fehlende
+
+def ist_bereits_teilgenommen(survey_id):
+    """Prüft den Missbrauchsschutz-Cookie (vgl. requirements.md Kap. 10).
+    Gibt True zurück, wenn der Nutzer an dieser Umfrage bereits teilgenommen hat."""
+    cookie_name = f"survey_completed_{survey_id}"
+    return request.cookies.get(cookie_name) == "true"
+
+# ==============================================================
+# Routen: Umfrage (mit Route Guarding & Serverseitiger Validierung)
 # ==============================================================
 
 @app.route('/', methods=['GET'])
@@ -126,127 +158,273 @@ def index():
 
 @app.route('/survey', methods=['GET'])
 def survey():
-    """Lädt die Umfrage und zeigt eine einzelne Frage basierend auf dem Schritt an."""
+    """Zeigt eine einzelne Umfrage-Frage an.
+
+    ROUTE GUARDING (vgl. requirements.md Kap. 11):
+    Der angefragte Schritt wird gegen den in der Session gespeicherten
+    maximalen erlaubten Schritt geprüft. Versucht ein Nutzer per URL-
+    Manipulation einen noch nicht erreichten Schritt aufzurufen, wird er
+    automatisch auf seinen korrekten Schritt zurückgeleitet (HTTP 302).
+    """
     role = request.args.get('role', 'student')
-    step = request.args.get('step', 0, type=int)
-    
-    # Umfragedaten vom Backend laden und in der Session cachen
-    # Beim ersten Aufruf (step=0) oder wenn keine Daten in der Session liegen
-    if step == 0 or 'survey_data' not in session:
+    angefragter_step = request.args.get('step', 0, type=int)
+
+    # -------------------------------------------------------
+    # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
+    # Nur beim Start einer neuen Umfrage (step=0) prüfen
+    # -------------------------------------------------------
+    if angefragter_step == 0:
+        # Beim Neustart die bisherige Session der Umfrage löschen
+        session.pop('survey_data', None)
+        session.pop('survey_answers', None)
+        session.pop('survey_role', None)
+        session.pop('survey_max_step', None)
+        session.pop('survey_version_id', None)
+
+    # -------------------------------------------------------
+    # Umfragedaten laden und in Session cachen
+    # -------------------------------------------------------
+    if 'survey_data' not in session or session.get('survey_role') != role:
         try:
-            response = requests.get(f"{BACKEND_API_URL}/survey?role={role}", headers=get_auth_headers())
+            response = requests.get(
+                f"{BACKEND_API_URL}/survey?role={role}",
+                headers=get_auth_headers()
+            )
             if response.status_code == 401:
                 session.clear()
                 flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
                 return redirect(url_for('login_page', role=role))
             response.raise_for_status()
             survey_data = response.json()
-            # Umfrage und leeres Antwort-Dict in Session speichern
-            session['survey_data'] = survey_data
-            session['survey_role'] = role
-            if step == 0:
-                session['survey_answers'] = {}
+
+            # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
+            session['survey_data']       = survey_data
+            session['survey_role']       = role
+            session['survey_version_id'] = survey_data.get('survey_id', '')
+            session['survey_answers']    = {}
+            session['survey_max_step']   = 0  # Maximal erreichter Schritt
         except Exception as e:
             print(f"Fehler beim Abrufen der Umfrage: {e}")
             return render_template('index.html', survey=None, role=role,
-                                   question=None, step=0, total=0)
-    
+                                   question=None, step=0, total=0, fehler=None)
+
     survey_data = session.get('survey_data')
     if not survey_data:
         return render_template('index.html', survey=None, role=role,
-                               question=None, step=0, total=0)
-    
+                               question=None, step=0, total=0, fehler=None)
+
     questions = survey_data.get('questions', [])
-    total = len(questions)
-    
-    # Sicherheitscheck: Schritt im gültigen Bereich?
-    if step < 0 or step >= total:
-        step = 0
-    
-    current_question = questions[step]
-    # Bereits gespeicherte Antwort für diese Frage vorladen
+    total     = len(questions)
+
+    # -------------------------------------------------------
+    # Versionskontrolle: Prüfen ob die Umfrage zwischenzeitlich
+    # verändert wurde (unterschiedliche survey_id → Neustart erzwingen)
+    # -------------------------------------------------------
+    if session.get('survey_version_id') != survey_data.get('survey_id', ''):
+        flash("Die Umfrage wurde aktualisiert. Bitte starten Sie neu.")
+        session.pop('survey_data', None)
+        return redirect(url_for('survey', role=role, step=0))
+
+    # -------------------------------------------------------
+    # Route Guarding: Nur erlaubte Schritte zulassen (Kap. 11)
+    # Maximaler erlaubter Schritt = höchster bisher gesendeter Schritt
+    # -------------------------------------------------------
+    max_erlaubter_step = session.get('survey_max_step', 0)
+
+    if angefragter_step < 0:
+        angefragter_step = 0
+
+    if angefragter_step > max_erlaubter_step:
+        # Manipulation erkannt → still auf korrekten Schritt umleiten
+        return redirect(url_for('survey', role=role, step=max_erlaubter_step))
+
+    if angefragter_step >= total:
+        angefragter_step = total - 1
+
+    current_question = questions[angefragter_step]
     saved_answer = session.get('survey_answers', {}).get(current_question['id'], '')
-    
+
     return render_template('index.html',
                            survey=survey_data,
                            question=current_question,
                            saved_answer=saved_answer,
-                           step=step,
+                           step=angefragter_step,
                            total=total,
-                           role=role)
+                           role=role,
+                           fehler=None)  # Kein Fehler beim normalen Laden
+
 
 @app.route('/survey/next', methods=['POST'])
 def survey_next():
-    """Speichert die aktuelle Antwort in der Session und geht zur nächsten Frage."""
-    role = request.form.get('role', 'student')
-    step = request.form.get('step', 0, type=int)
+    """Verarbeitet den Formular-Submit einer einzelnen Frage.
+
+    SERVERSEITIGE PFLICHTFELD-PRÜFUNG (vgl. requirements.md Kap. 11):
+    Jede Antwort wird gegen die Originaldefinition der Umfrage validiert.
+    Bei Fehler → Seite neu rendern mit Fehlermeldung (kein Redirect).
+
+    ROUTE GUARDING:
+    survey_max_step wird nur erhöht, wenn die Validierung erfolgreich war.
+    """
+    role        = request.form.get('role', 'student')
+    step        = request.form.get('step', 0, type=int)
     question_id = request.form.get('question_id', '')
-    answer = request.form.get('answer', '').strip()
-    
-    # Antwort in Session speichern
-    answers = session.get('survey_answers', {})
-    if answer:
-        answers[question_id] = answer
-    session['survey_answers'] = answers
-    
+    answer      = request.form.get('answer', '').strip()
+
     survey_data = session.get('survey_data')
     if not survey_data:
         flash("Sitzung abgelaufen. Bitte starten Sie die Umfrage erneut.")
         return redirect(url_for('index'))
-    
-    total = len(survey_data.get('questions', []))
-    next_step = step + 1
-    
-    # Letzte Frage erreicht? -> Absenden
-    if next_step >= total:
+
+    questions = survey_data.get('questions', [])
+    total     = len(questions)
+
+    # -------------------------------------------------------
+    # Die aktuelle Frage aus der Originaldefinition ermitteln
+    # -------------------------------------------------------
+    if step < 0 or step >= total:
+        return redirect(url_for('survey', role=role, step=0))
+
+    aktuelle_frage = questions[step]
+
+    # -------------------------------------------------------
+    # Serverseitige Pflichtfeld-Prüfung (Kap. 11)
+    # HTML5-required ist nur visuelle Hilfe – wir erzwingen es hier!
+    # -------------------------------------------------------
+    fehler = pruefe_pflichtfeld(aktuelle_frage, answer)
+    if fehler:
+        # Fehler: Aktuelle Seite mit Fehlermeldung neu rendern (kein Redirect)
+        saved_answer = session.get('survey_answers', {}).get(question_id, answer)
+        return render_template('index.html',
+                               survey=survey_data,
+                               question=aktuelle_frage,
+                               saved_answer=saved_answer,
+                               step=step,
+                               total=total,
+                               role=role,
+                               fehler=fehler), 422
+
+    # -------------------------------------------------------
+    # Validierung erfolgreich: Antwort in Session speichern
+    # -------------------------------------------------------
+    answers = session.get('survey_answers', {})
+    answers[question_id] = answer
+    session['survey_answers'] = answers
+
+    # Maximalen erlaubten Schritt erhöhen (Route Guarding)
+    naechster_step = step + 1
+    session['survey_max_step'] = max(session.get('survey_max_step', 0), naechster_step)
+
+    # -------------------------------------------------------
+    # Letzte Frage beantwortet → Payload-Integrität prüfen & Absenden
+    # -------------------------------------------------------
+    if naechster_step >= total:
         return redirect(url_for('survey_submit'))
-    
-    return redirect(url_for('survey', role=role, step=next_step))
+
+    return redirect(url_for('survey', role=role, step=naechster_step))
+
 
 @app.route('/survey/back', methods=['POST'])
 def survey_back():
-    """Speichert die aktuelle Antwort und geht eine Frage zurück."""
-    role = request.form.get('role', 'student')
-    step = request.form.get('step', 0, type=int)
+    """Geht eine Frage zurück. Speichert die aktuelle Antwort ohne Validierung
+    (Pflichtfeld-Prüfung gilt nur beim Vorwärtsgehen, nie beim Zurückgehen)."""
+    role        = request.form.get('role', 'student')
+    step        = request.form.get('step', 0, type=int)
     question_id = request.form.get('question_id', '')
-    answer = request.form.get('answer', '').strip()
-    
-    # Auch beim Zurückgehen die aktuelle Antwort speichern
-    answers = session.get('survey_answers', {})
+    answer      = request.form.get('answer', '').strip()
+
+    # Antwort auch beim Zurückgehen speichern (falls bereits ausgefüllt)
     if answer:
+        answers = session.get('survey_answers', {})
         answers[question_id] = answer
-    session['survey_answers'] = answers
-    
+        session['survey_answers'] = answers
+
     prev_step = max(0, step - 1)
     return redirect(url_for('survey', role=role, step=prev_step))
 
+
 @app.route('/survey/submit', methods=['GET'])
 def survey_submit():
-    """Sendet alle gesammelten Antworten aus der Session an das Backend."""
+    """Finaler Abschluss der Umfrage.
+
+    PAYLOAD-INTEGRITÄT (vgl. requirements.md Kap. 11):
+    Vor dem Senden an das Backend wird geprüft, ob alle Pflichtfragen
+    beantwortet wurden. Fehlt eine Antwort, wird der Nutzer zur ersten
+    unbeantworteten Frage zurückgeleitet.
+
+    MISSBRAUCHSSCHUTZ (vgl. requirements.md Kap. 10):
+    Nach erfolgreichem Absenden wird ein Cookie gesetzt, der eine
+    erneute Teilnahme für 30 Tage blockiert (Frictionless Security).
+    """
     survey_data = session.get('survey_data')
-    answers = session.get('survey_answers', {})
-    
+    answers     = session.get('survey_answers', {})
+    role        = session.get('survey_role', 'student')
+
     if not survey_data:
         flash("Keine Umfragedaten gefunden. Bitte starten Sie erneut.")
         return redirect(url_for('index'))
-    
+
+    # -------------------------------------------------------
+    # Payload-Integrität prüfen: Alle Pflichtfelder beantwortet?
+    # -------------------------------------------------------
+    fehlende_fragen = pruefe_payload_integritaet(survey_data, answers)
+    if fehlende_fragen:
+        # Zur ersten unbeantworteten Pflichtfrage zurückleiten
+        questions = survey_data.get('questions', [])
+        fragen_ids = [f['id'] for f in questions]
+        erste_fehlende_idx = 0
+        for idx, fid in enumerate(fragen_ids):
+            if fid in fehlende_fragen:
+                erste_fehlende_idx = idx
+                break
+
+        flash(f"Bitte beantworten Sie alle Pflichtfragen. "
+              f"{len(fehlende_fragen)} Pflichtfrage(n) fehlen noch.")
+        # survey_max_step zurücksetzen, damit der Nutzer wieder vorankommen kann
+        session['survey_max_step'] = erste_fehlende_idx
+        return redirect(url_for('survey', role=role, step=erste_fehlende_idx))
+
+    # -------------------------------------------------------
+    # Finaler Payload an das Backend senden
+    # -------------------------------------------------------
+    survey_id = survey_data.get('survey_id', 'unknown')
     payload = {
-        "survey_id": survey_data.get('survey_id', 'unknown'),
+        "survey_id": survey_id,
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-        "answers": answers
+        "answers":   answers
     }
-    
+
     try:
-        requests.post(f"{BACKEND_API_URL}/results", json=payload, headers=get_auth_headers())
+        requests.post(
+            f"{BACKEND_API_URL}/results",
+            json=payload,
+            headers=get_auth_headers()
+        )
     except Exception as e:
-        print(f"Warnung: Fehler beim Senden ({e}).")
-    
-    # Session-Daten der Umfrage bereinigen
+        print(f"Warnung: Fehler beim Senden der Ergebnisse ({e}).")
+
+    # -------------------------------------------------------
+    # Session-Daten der abgeschlossenen Umfrage bereinigen
+    # -------------------------------------------------------
     session.pop('survey_data', None)
     session.pop('survey_answers', None)
     session.pop('survey_role', None)
-    
-    return render_template('success.html')
+    session.pop('survey_max_step', None)
+    session.pop('survey_version_id', None)
+
+    # -------------------------------------------------------
+    # Missbrauchsschutz-Cookie setzen (30 Tage, vgl. Kap. 10)
+    # survey_completed_<survey_id>=true verhindert erneute Teilnahme
+    # -------------------------------------------------------
+    antwort = render_template('success.html')
+    response = app.make_response(antwort)
+    response.set_cookie(
+        key=f"survey_completed_{survey_id}",
+        value="true",
+        max_age=30 * 24 * 60 * 60,  # 30 Tage in Sekunden
+        httponly=True,               # Nicht per JavaScript auslesbar
+        samesite='Lax'
+    )
+    return response
 
 # ==============================================================
 # Routen: Admin Dashboard & Verwaltung
