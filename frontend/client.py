@@ -54,59 +54,57 @@ def login_page():
 @app.route('/login', methods=['POST'])
 def login():
     """Sendet Credentials an Backend und speichert JWT Token in der Session.
-    Fallback: Wenn das Backend /api/login nicht bereitstellt, werden
-    lokale Test-Zugangsdaten aus DEV_TEST_USERS akzeptiert."""
-    username = request.form.get('username')
-    password = request.form.get('password')
+    Fallback: Wenn das Backend /api/login nicht erreichbar ist oder einen
+    unerwarteten Fehler zurückgibt, werden lokale Test-Zugangsdaten genutzt.
+    Nur bei explizitem 401 vom Backend wird der Fallback NICHT aktiviert."""
+    username     = request.form.get('username')
+    password     = request.form.get('password')
     desired_role = request.form.get('role', 'student')
-    
+
     # Versuch 1: Login über das Backend (Produktivmodus)
-    backend_erreichbar = False
+    backend_hat_explizit_abgelehnt = False
     try:
         response = requests.post(f"{BACKEND_API_URL}/login", json={
             "username": username,
             "password": password
         }, timeout=3)
-        backend_erreichbar = True
-        
+
         if response.ok:
+            # Backend hat erfolgreich eingeloggt → Token speichern
             data = response.json()
-            session['token'] = data.get('token')
-            session['role'] = data.get('role', desired_role)
+            session['token']    = data.get('token')
+            session['role']     = data.get('role', desired_role)
             session['username'] = username
             flash("Erfolgreich eingeloggt.")
-            
             if session['role'] == 'admin':
                 return redirect(url_for('admin'))
-            else:
-                return redirect(url_for('survey', role=session['role']))
-        
-        # Backend hat geantwortet, aber Route existiert nicht (404) → Fallback nutzen
-        if response.status_code == 404:
-            backend_erreichbar = False
-        else:
-            flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.")
-            return redirect(url_for('login_page', role=desired_role))
-            
+            return redirect(url_for('survey', role=session['role']))
+
+        if response.status_code == 401:
+            # Backend kennt den Benutzer und lehnt ihn explizit ab → kein Fallback
+            backend_hat_explizit_abgelehnt = True
+
+        # Alle anderen Codes (404, 405, 500 etc.) → Fallback auf DEV_TEST_USERS
+
     except Exception:
-        backend_erreichbar = False
-    
+        # Backend nicht erreichbar → Fallback
+        pass
+
     # Versuch 2: Lokale Test-Zugangsdaten (Entwicklungsmodus)
-    if not backend_erreichbar:
+    if not backend_hat_explizit_abgelehnt:
         test_user = DEV_TEST_USERS.get(username)
         if test_user and test_user["password"] == password:
-            session['token'] = f"dev-token-{username}"
-            session['role'] = test_user["role"]
+            session['token']    = f"dev-token-{username}"
+            session['role']     = test_user["role"]
             session['username'] = username
             flash(f"Eingeloggt als {username} (Entwicklungsmodus).")
-            
             if test_user["role"] == 'admin':
                 return redirect(url_for('admin'))
-            else:
-                return redirect(url_for('survey', role=test_user["role"]))
-    
+            return redirect(url_for('survey', role=test_user["role"]))
+
     flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.")
     return redirect(url_for('login_page', role=desired_role))
+
 
 @app.route('/logout')
 def logout():
@@ -116,16 +114,35 @@ def logout():
     return redirect(url_for('index'))
 
 # ==============================================================
-# Hilfsfunktionen: Umfrage-Validierung (vgl. requirements.md Kap. 11)
+# Hilfsfunktionen: Umfrage-Validierung (vgl. requirements.md Kap. 11 & 13)
 # ==============================================================
+
+def lese_antwort_aus_formular(frage):
+    """Liest die Antwort für eine Frage typgerecht aus dem Formular.
+    Behandelt Mehrfachauswahl (Checkboxen) korrekt via getlist().
+    Speicherformat für multiple_choice: kommaseparierter String (vgl. Kap. 13)."""
+    typ = frage.get('type', 'text')
+    if typ == 'multiple_choice':
+        # Checkbox: mehrere Werte möglich → als kommaseparierter String speichern
+        werte = request.form.getlist('answer')
+        return ','.join(werte)  # z.B. "opt1,opt3"
+    else:
+        # text, single_choice, rating: genau ein Wert
+        return request.form.get('answer', '').strip()
 
 def pruefe_pflichtfeld(frage, antwort):
     """Prüft serverseitig, ob eine Pflichtfrage beantwortet wurde.
+    Behandelt alle 4 Fragetypen (text, single_choice, multiple_choice, rating).
     Gibt None zurück wenn gültig, sonst eine deutsche Fehlermeldung.
     HTML5-required gilt nur als visuelle Hilfe – nie als Sicherheitsmerkmal!"""
     if not frage.get('required', False):
         return None  # Keine Pflichtfrage → immer gültig
     if not antwort or not antwort.strip():
+        typ = frage.get('type', 'text')
+        if typ == 'rating':
+            return "Bitte geben Sie eine Bewertung (1–5 Sterne) ab."
+        elif typ in ('single_choice', 'multiple_choice'):
+            return "Bitte wählen Sie mindestens eine Option aus."
         return "Bitte beantworten Sie diese Pflichtfrage, bevor Sie fortfahren."
     return None  # Antwort vorhanden → gültig
 
@@ -146,6 +163,57 @@ def ist_bereits_teilgenommen(survey_id):
     Gibt True zurück, wenn der Nutzer an dieser Umfrage bereits teilgenommen hat."""
     cookie_name = f"survey_completed_{survey_id}"
     return request.cookies.get(cookie_name) == "true"
+
+def berechne_statistiken(umfragen, ergebnisse):
+    """Berechnet Antworthäufigkeiten für Multiple-Choice-Fragen aller Umfragen.
+    Wird für die HTML/CSS-Balkengrafik in Tab 1 des Admin-Dashboards genutzt
+    (vgl. requirements.md Kap. 12.1, Funktion 1.4 – kein JavaScript).
+
+    Rückgabe: dict { survey_id: { frage_label: { option_text: anzahl, '_gesamt': n } } }
+    """
+    statistiken = {}
+    for umfrage in umfragen:
+        sid = umfrage.get('survey_id', '')
+        statistiken[sid] = {}
+        # Nur Fragen mit Optionen auswerten (single_choice, multiple_choice, rating)
+        for frage in umfrage.get('questions', []):
+            if frage.get('type') not in ('single_choice', 'multiple_choice', 'rating'):
+                continue
+            fid   = frage['id']
+            label = frage.get('label', fid)
+            # Optionen-Map aufbauen: value → Anzahl
+            zaehler = {}
+            if frage.get('options'):
+                for opt in frage['options']:
+                    zaehler[opt['text']] = 0
+            else:
+                # rating: Optionen 1–5
+                for i in range(1, 6):
+                    zaehler[str(i)] = 0
+
+            gesamt = 0
+            for ergebnis in ergebnisse:
+                if ergebnis.get('survey_id') != sid:
+                    continue
+                rohwert = ergebnis.get('answers', {}).get(fid, '')
+                if not rohwert:
+                    continue
+                # multiple_choice: kommasepariert aufsplitten
+                einzelwerte = [v.strip() for v in rohwert.split(',')] if ',' in rohwert else [rohwert]
+                for wert in einzelwerte:
+                    # Wert auf Optionstext mappen
+                    angezeigter_text = wert  # Fallback: Rohwert anzeigen
+                    if frage.get('options'):
+                        for opt in frage['options']:
+                            if opt['value'] == wert or opt['text'] == wert:
+                                angezeigter_text = opt['text']
+                                break
+                    zaehler[angezeigter_text] = zaehler.get(angezeigter_text, 0) + 1
+                    gesamt += 1
+
+            zaehler['_gesamt'] = gesamt
+            statistiken[sid][label] = zaehler
+    return statistiken
 
 # ==============================================================
 # Routen: Umfrage (mit Route Guarding & Serverseitiger Validierung)
@@ -268,7 +336,19 @@ def survey_next():
     role        = request.form.get('role', 'student')
     step        = request.form.get('step', 0, type=int)
     question_id = request.form.get('question_id', '')
-    answer      = request.form.get('answer', '').strip()
+    # Typgerechte Antwort lesen: multiple_choice via getlist(), Rest via get()
+    # (vgl. lese_antwort_aus_formular – Kap. 13 Zustandsdefinition)
+    aktuelle_frage_vorab = None
+    survey_data_vorab = session.get('survey_data')
+    if survey_data_vorab:
+        fragen_vorab = survey_data_vorab.get('questions', [])
+        step_vorab = request.form.get('step', 0, type=int)
+        if 0 <= step_vorab < len(fragen_vorab):
+            aktuelle_frage_vorab = fragen_vorab[step_vorab]
+    if aktuelle_frage_vorab:
+        answer = lese_antwort_aus_formular(aktuelle_frage_vorab)
+    else:
+        answer = request.form.get('answer', '').strip()
 
     survey_data = session.get('survey_data')
     if not survey_data:
@@ -483,10 +563,57 @@ def lade_ergebnisse():
 @app.route('/admin', methods=['GET'])
 @login_required
 def admin():
-    """Admin-Dashboard: Lädt alle Umfragen und Ergebnisse für die 3-Tab-Ansicht."""
-    alle_umfragen = lade_alle_umfragen_lokal()
+    """Admin-Dashboard: Lädt alle Umfragen, Ergebnisse und Statistiken für die 3-Tab-Ansicht.
+    Statistiken werden serverseitig berechnet für die HTML/CSS-Balkengrafik (Kap. 12.1 Funktion 1.4)."""
+    alle_umfragen   = lade_alle_umfragen_lokal()
     alle_ergebnisse = lade_ergebnisse()
-    return render_template('admin.html', umfragen=alle_umfragen, ergebnisse=alle_ergebnisse)
+    # Antwortstatistiken für Balkengrafik serverseitig berechnen (kein JS, vgl. Kap. 12.4)
+    alle_statistiken = berechne_statistiken(alle_umfragen, alle_ergebnisse)
+    return render_template('admin.html',
+                           umfragen=alle_umfragen,
+                           ergebnisse=alle_ergebnisse,
+                           statistiken=alle_statistiken)
+
+@app.route('/admin/results/export', methods=['GET'])
+@login_required
+def admin_results_export():
+    """CSV-Export aller Umfrageergebnisse (vgl. requirements.md Kap. 12.1, Funktion 1.5).
+
+    Zustandsdefinition (Kap. 13):
+    - Kein Session-Zustand: Export wird bei jedem Aufruf frisch generiert (zustandslos)
+    - Liest Ergebnisse aus backend/data/results/*.json oder via API
+    - UI-Zustand: Browser-Download-Dialog (Content-Disposition: attachment)
+    - Fehlerzustand: Keine Daten → leere CSV mit Header-Zeile (kein Fehler, kein 4xx)
+    """
+    import io
+    import csv
+    from flask import Response
+
+    alle_ergebnisse = lade_ergebnisse()
+
+    # CSV im Arbeitsspeicher aufbauen (kein temporäres File auf der Festplatte)
+    ausgabe = io.StringIO()
+    schreiber = csv.writer(ausgabe, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    # Kopfzeile
+    schreiber.writerow(['Ergebnis-ID', 'Zeitstempel', 'Umfrage-ID', 'Frage-ID', 'Antwort'])
+
+    for ergebnis in alle_ergebnisse:
+        eid       = ergebnis.get('result_id', ergebnis.get('id', '–'))
+        zeitpunkt = ergebnis.get('received_at', ergebnis.get('timestamp', '–'))
+        sid       = ergebnis.get('survey_id', '–')
+        for frage_id, antwort in ergebnis.get('answers', {}).items():
+            schreiber.writerow([eid, zeitpunkt, sid, frage_id, antwort])
+
+    # UTF-8 mit BOM für korrekte Darstellung in Excel (ü, ä, ö)
+    csv_inhalt = '\ufeff' + ausgabe.getvalue()
+
+    dateiname = f"umfrage_ergebnisse_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        csv_inhalt,
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{dateiname}"'}
+    )
 
 @app.route('/admin/surveys/save', methods=['POST'])
 @login_required

@@ -49,11 +49,18 @@
      ============================================================ -->
 <div id="tab-ergebnisse" class="admin-tab-inhalt aktiv">
     <div class="card">
-        <div class="card-header">
-            <h2>&#128202; Eingegangene Ergebnisse</h2>
-            <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
-                {{ ergebnisse|length }} Antwort(en) gesamt
-            </p>
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2>&#128202; Eingegangene Ergebnisse</h2>
+                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
+                    {{ ergebnisse|length }} Antwort(en) gesamt
+                </p>
+            </div>
+            <!-- CSV-Export-Button (vgl. requirements.md Kap. 12.1, Funktion 1.5) -->
+            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+                &#128229; CSV exportieren
+            </a>
         </div>
         <div class="card-body">
             <!-- Umfrage-Filter -->
@@ -123,6 +130,63 @@
             {% endif %}
         </div>
     </div>
+
+    <!-- ============================================================
+         STATISTIK-BEREICH: HTML/CSS-Balkengrafik (kein JavaScript!)
+         Zeigt Antworthäufigkeiten für Auswahl- und Bewertungsfragen
+         Vgl. requirements.md Kap. 12.1 Funktion 1.4
+         ============================================================ -->
+    {% if statistiken %}
+    {% set ns = namespace(hat_daten=false) %}
+    {% for sid, fragen_stats in statistiken.items() %}
+        {% if fragen_stats %}
+            {% set ns.hat_daten = true %}
+        {% endif %}
+    {% endfor %}
+    {% if ns.hat_daten %}
+    <div class="card" style="margin-top: 24px;">
+        <div class="card-header">
+            <h2>&#128200; Auswertung: Auswahl- &amp; Bewertungsfragen</h2>
+            <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">Antworthäufigkeiten als Balkengrafik &ndash; serverseitig berechnet</p>
+        </div>
+        <div class="card-body">
+            {% for sid, fragen_stats in statistiken.items() %}
+            {% if fragen_stats %}
+            <div class="statistik-umfrage-block">
+                <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
+                {% for frage_label, zaehler in fragen_stats.items() %}
+                {% set gesamt = zaehler['_gesamt'] %}
+                <div class="statistik-frage-block">
+                    <p class="statistik-frage-label">{{ frage_label }}</p>
+                    {% if gesamt == 0 %}
+                    <p style="color: var(--color-text-light); font-style: italic;">Noch keine Antworten für diese Frage.</p>
+                    {% else %}
+                    <div class="statistik-balken-container">
+                        {% for option, anzahl in zaehler.items() %}
+                        {% if option != '_gesamt' %}
+                        {% set prozent = ((anzahl / gesamt) * 100) | round(1) %}
+                        <div class="statistik-balken-zeile">
+                            <span class="statistik-option-label">{{ option }}</span>
+                            <div class="statistik-balken-track">
+                                <div class="statistik-balken-fill" style="width: {{ prozent }}%;"></div>
+                            </div>
+                            <span class="statistik-anzahl">{{ anzahl }}x ({{ prozent }}%)</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ gesamt }} Antwort(en) gesamt</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
 </div>
 
 <!-- ============================================================

@@ -6,9 +6,9 @@
 
 {% block content %}
 <section id="survey-container" class="survey-box">
-    
+
     {% if survey and question %}
-    
+
     <!-- Fortschrittsanzeige -->
     <div class="progress-info">
         <span class="progress-text">Frage {{ step + 1 }} von {{ total }}</span>
@@ -28,22 +28,27 @@
         </div>
         {% endif %}
 
+        <!-- ============================================================
+             Fragetyp: FREITEXT (text)
+             Pflichtfeldprüfung erfolgt serverseitig in survey_next()
+             ============================================================ -->
         {% if question.type == 'text' %}
         <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
-            
+
             <label class="question-label" for="{{ question.id }}-input">{{ question.label }}</label>
-            <textarea class="form-control" id="{{ question.id }}-input" name="answer" rows="5" placeholder="Ihre Antwort..." {% if question.required %}required{% endif %}>{{ saved_answer }}</textarea>
-            
+            <textarea class="form-control" id="{{ question.id }}-input" name="answer"
+                      rows="5" placeholder="Ihre Antwort..."
+                      {% if question.required %}required{% endif %}>{{ saved_answer }}</textarea>
+
             <div class="step-nav">
                 {% if step > 0 %}
                 <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
-                
                 {% if step < total - 1 %}
                 <button type="submit" class="btn-primary">Weiter &rarr;</button>
                 {% else %}
@@ -51,31 +56,37 @@
                 {% endif %}
             </div>
         </form>
-        
-        {% elif question.type == 'multiple_choice' %}
+
+        <!-- ============================================================
+             Fragetyp: EINZELAUSWAHL (single_choice) – Radio, genau 1 Antwort
+             Vgl. requirements.md Kap. 12.3 und Zustandsdefinition Kap. 13
+             Validierung: Wert muss in options.value enthalten sein
+             ============================================================ -->
+        {% elif question.type == 'single_choice' %}
         <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
-            
+
             <p class="question-label">{{ question.label }}</p>
             <div class="options">
                 {% for opt in question.options %}
                 <label class="option-label {% if saved_answer == opt.value %}option-selected{% endif %}">
-                    <input type="radio" name="answer" value="{{ opt.value }}" {% if question.required %}required{% endif %} {% if saved_answer == opt.value %}checked{% endif %}>
+                    <input type="radio" name="answer" value="{{ opt.value }}"
+                           {% if question.required %}required{% endif %}
+                           {% if saved_answer == opt.value %}checked{% endif %}>
                     <span class="custom-radio"></span>
                     {{ opt.text }}
                 </label>
                 {% endfor %}
             </div>
-            
+
             <div class="step-nav">
                 {% if step > 0 %}
                 <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
-                
                 {% if step < total - 1 %}
                 <button type="submit" class="btn-primary">Weiter &rarr;</button>
                 {% else %}
@@ -83,10 +94,95 @@
                 {% endif %}
             </div>
         </form>
+
+        <!-- ============================================================
+             Fragetyp: MEHRFACHAUSWAHL (multiple_choice) – Checkbox
+             Mehrere Antworten möglich; serverseitig als kommaseparierter
+             String gespeichert (z.B. "opt1,opt2") – vgl. Kap. 13
+             ============================================================ -->
+        {% elif question.type == 'multiple_choice' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            <!-- Pflichtfeld-Marker für serverseitige Prüfung (kein HTML5-required bei Checkboxen) -->
+            <input type="hidden" name="required" value="{{ 'true' if question.required else 'false' }}">
+
+            <p class="question-label">{{ question.label }}</p>
+            <div class="options">
+                {% for opt in question.options %}
+                {# Gespeicherte Antworten als Liste ermitteln (kommasepariert gespeichert) #}
+                {% set saved_list = saved_answer.split(',') if saved_answer else [] %}
+                <label class="option-label {% if opt.value in saved_list %}option-selected{% endif %}" style="cursor:pointer;">
+                    <input type="checkbox" name="answer" value="{{ opt.value }}"
+                           {% if opt.value in saved_list %}checked{% endif %}>
+                    <span class="custom-checkbox">&#10003;</span>
+                    {{ opt.text }}
+                </label>
+                {% endfor %}
+            </div>
+
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- ============================================================
+             Fragetyp: BEWERTUNG (rating) – Sterne 1 bis 5
+             Technisch: Radio-Buttons mit Stern-Symbolen (kein JS)
+             Speicherformat: String "1"–"5" in der Session
+             Validierung: Wert muss "1"–"5" sein – vgl. Kap. 13
+             ============================================================ -->
+        {% elif question.type == 'rating' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+
+            <p class="question-label">{{ question.label }}</p>
+            <div class="rating-group">
+                {% for stern in [1, 2, 3, 4, 5] %}
+                <label class="rating-label {% if saved_answer == stern|string %}rating-aktiv{% endif %}">
+                    <input type="radio" name="answer" value="{{ stern }}"
+                           {% if question.required %}required{% endif %}
+                           {% if saved_answer == stern|string %}checked{% endif %}>
+                    <span class="rating-stern">&#9733;</span>
+                    <span class="rating-zahl">{{ stern }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <div class="rating-beschriftung">
+                <span>Sehr schlecht</span>
+                <span>Sehr gut</span>
+            </div>
+
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                {% endif %}
+            </div>
+        </form>
+
         {% endif %}
 
     </div>
-    
+
     {% elif not survey %}
     <div class="error-container">
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-exclamation-triangle" viewBox="0 0 16 16">

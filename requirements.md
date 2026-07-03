@@ -256,3 +256,140 @@ Bei jedem Formular-Submit prüft die Flask-Route die empfangenen Daten zwingend 
 
 **Payload-Integrität beim Abschluss:**
 Erst wenn Flask intern verifiziert hat, dass alle Seiten der Umfrage linear durchlaufen und alle Pflichtfelder beantwortet wurden, darf der gesammelte Zustand als finaler Payload an das Backend (`POST /api/results`) gesendet werden.
+
+## 12. Admin-Oberfläche: Funktionsanforderungen
+
+Der Admin-Bereich ist in drei Tabs unterteilt. Zugang nur nach Login mit Admin-Rolle (`@login_required`).
+
+### 12.1 Bereich „Ergebnisse anzeigen"
+
+**Ziel:** Strukturierter Überblick über alle eingegangenen Umfrage-Antworten.
+
+| Nr. | Funktion | Beschreibung |
+|-----|----------|-------------|
+| 1.1 | Umfragen-Filter | Liste aller vorhandenen Umfragen (Student / Professor). Klick filtert die Ergebnistabelle. |
+| 1.2 | Ergebnistabelle | Alle Einreichungen: Zeitstempel, Umfrage-ID, kompakte Antwortvorschau (aufklappbar). |
+| 1.3 | Antwortdetails | Pro Einreichung: Alle Fragen + zugehörige Antworten in lesbarer Form. |
+| 1.4 | Auswertungsstatistik | Pro Umfrage: Antworthäufigkeit bei Multiple-Choice-Fragen als Balkengrafik (reines HTML/CSS, kein JS). |
+| 1.5 | Ergebnis-Export | Download der Ergebnisse als CSV-Datei (Flask-Route generiert serverseitig). |
+
+**Sicherheit:** Nur für eingeloggte Admins. Keine Ergebnisse werden gesendet, bevor der Session-Token validiert wurde.
+
+### 12.2 Bereich „Umfragen bearbeiten"
+
+**Ziel:** Bestehende Umfragen nachträglich anpassen ohne Neuerstellung.
+
+| Nr. | Funktion | Beschreibung |
+|-----|----------|-------------|
+| 2.1 | Umfragen-Liste | Linke Seitenleiste mit allen Umfragen (Titel, Zielgruppe, Fragenanzahl). |
+| 2.2 | Fragen-Editor | Klick öffnet Umfrage im Editor: Fragetext, Typ, Optionen und Pflichtfeld-Status editierbar. |
+| 2.3 | Reihenfolge | Fragen per Auf/Ab-Pfeil verschieben. |
+| 2.4 | Frage löschen | Einzelne Fragen entfernen (mit Bestätigungshinweis). |
+| 2.5 | Frage hinzufügen | Neue Frage an beliebiger Position einfügen (Typ wählbar). |
+| 2.6 | Speichern | Überschreibt `survey_student.json` bzw. `survey_professor.json` via `POST /admin/surveys/save`. |
+| 2.7 | Versionswarnung | Wenn eine Umfrage bearbeitet wird, die gerade von Teilnehmern ausgefüllt wird, zeigt Flask eine Warnung (Versionskontrolle via `survey_id`, vgl. Kap. 10). |
+
+**Sicherheit:** Speichern erfordert serverseitige Validierung: mind. 1 Frage, Titel vorhanden, Rolle gültig.
+
+### 12.3 Bereich „Umfrage erstellen"
+
+**Ziel:** Neue Umfragen ohne Programmierkenntnisse erstellen.
+
+| Nr. | Funktion | Beschreibung |
+|-----|----------|-------------|
+| 3.1 | Metadaten | Titel (Pflicht), Beschreibung (optional), Zielgruppe: Student oder Professor. |
+| 3.2 | Fragen-Builder | Dynamisches Hinzufügen von Fragen. Jede Frage: Fragetext, Typ-Auswahl, Pflichtfeld-Toggle. |
+| 3.3 | Fragetypen | Freitext (Textarea), Einzelauswahl (Radio), Mehrfachauswahl (Checkbox), Bewertung 1–5. |
+| 3.4 | Optionen verwalten | Bei Auswahl-Fragen: Optionen hinzufügen/entfernen. Mind. 2 Optionen (serverseitig validiert). |
+| 3.5 | Reihenfolge | Fragen per Auf/Ab-Pfeil verschieben. |
+| 3.6 | Speichern | Sendet JSON an `POST /admin/surveys/save`, das die Datei serverseitig schreibt. |
+| 3.7 | Zurücksetzen | Formular leeren und neu beginnen. |
+| 3.8 | Feedback | Klare Erfolgs-/Fehlermeldung nach dem Speichern (serverseitig, kein JS). |
+
+**Sicherheit:** Serverseitige Validierung aller Pflichtfelder. Keine direkte Dateimanipulation vom Browser – ausschließlich über definierte Flask-Routen.
+
+### 12.4 Gemeinsame technische Grundsatzregeln (alle 3 Bereiche)
+
+| Regel | Umsetzung |
+|-------|-----------|
+| Kein JavaScript für Logik | JS nur für den Admin-Builder (erlaubte Ausnahme laut agents.md). Validierung und Navigation via Python/Flask. |
+| Alle Kommentare auf Deutsch | Gilt für Python, HTML und CSS-Kommentare. |
+| Login-Pflicht | Jede Admin-Route ist mit `@login_required` geschützt. |
+| Serverseitige Validierung | Alle Eingaben werden in Flask gegen die Umfrage-JSON-Definition geprüft, bevor sie gespeichert werden. |
+
+---
+
+## 13. Regel: Zustandsdokumentation vor jeder Implementierung
+
+**Grundsatz:** Bevor eine neue Funktion oder eine Änderung an einer bestehenden Funktion implementiert wird, müssen die betroffenen Zustände (States) vollständig definiert und in der `requirements.md` dokumentiert sein.
+
+Diese Regel gilt für **beide Agenten (Antigravity und Codex)** und für **jeden Änderungstyp** (neue Feature, Bugfix, Refactoring).
+
+### Was muss dokumentiert werden?
+
+Für jede Änderung sind folgende Zustandsinformationen zu definieren und festzuhalten:
+
+| Zustandsebene | Zu dokumentierende Informationen |
+|---------------|----------------------------------|
+| **Backend-Zustand** | Welche Daten werden dauerhaft gespeichert? In welcher Datei/Datenstruktur? Welches Format? |
+| **Session-Zustand (Flask)** | Welche Session-Variablen werden angelegt, verändert oder gelöscht? Wann und durch welche Route? |
+| **Cookie-Zustand (Client)** | Welche Cookies werden gesetzt? Name, Wert, Lebensdauer, `httponly`-Flag? |
+| **UI-Zustand (Browser)** | Welche temporären Eingaben hält der Browser? Wann werden sie verworfen? |
+| **Fehlerzustand** | Welche Fehler können auftreten? Wie reagiert das System (Redirect, Fehlermeldung, HTTP-Statuscode)? |
+
+### Dokumentationspflicht vor dem Coden
+
+Die Zustandsdefinition muss **vor oder zeitgleich** mit der Implementierung in die `requirements.md` eingetragen werden – niemals nachträglich. Ziel ist, dass der jeweils andere Agent (und der menschliche Entwickler) zu jedem Zeitpunkt den vollständigen Systemzustand aus der Dokumentation ablesen kann, ohne den Code lesen zu müssen.
+
+### Beispiel-Struktur für eine Zustandsdefinition
+
+```
+### Zustand: Umfrage-Fortschritt (Normalnutzer)
+- **Session-Variable:** `survey_max_step` (int) – höchster bisher freigeschalteter Schritt
+- **Angelegt:** GET /survey?step=0 (Umfrage-Start)
+- **Erhöht:** POST /survey/next (nur bei erfolgreicher Validierung)
+- **Gelöscht:** GET /survey/submit (nach erfolgreichem Absenden)
+- **Fehlerzustand:** Wert > aktueller step → HTTP 302 Redirect auf survey_max_step
+
+### Zustand: Participation-Cookie (Missbrauchsschutz)
+- **Cookie-Name:** `survey_completed_<survey_id>` (z. B. `survey_completed_ask_alma_student_v1`)
+- **Wert:** `"true"`
+- **Lebensdauer:** 30 Tage (`max_age = 2592000`)
+- **Flags:** `httponly=True`, `samesite='Lax'`
+- **Gesetzt durch:** GET /survey/submit (nach erfolgreichem Absenden)
+- **Geprüft durch:** GET /survey?step=0 (Umfrage-Start)
+- **Fehlerzustand:** Cookie vorhanden → Weiterleitung zur bereits-teilgenommen Seite
+
+### Zustand: Admin-Session
+- **Session-Variable:** `token` (str) – JWT-Token des eingeloggten Admins
+- **Session-Variable:** `username` (str) – Anzeigename des Admins
+- **Angelegt:** POST /login (bei erfolgreichem Login)
+- **Gelöscht:** GET /logout
+- **Fehlerzustand:** Kein Token → @login_required leitet auf /login um
+
+### Zustand: CSV-Export (serverseitig, zustandslos)
+- **Kein Session-Zustand** – Export wird bei jedem Aufruf frisch generiert
+- **Route:** GET /admin/results/export
+- **Backend-Zustand:** Liest alle JSON-Dateien aus `backend/data/results/`
+- **UI-Zustand:** Browser-Download-Dialog (via Content-Disposition Header)
+- **Fehlerzustand:** Keine Ergebnisse → leere CSV mit Header-Zeile
+
+### Zustand: Statistik-Anzeige (Admin Tab 1)
+- **Kein eigener State** – wird serverseits beim Laden von /admin berechnet
+- **Flask berechnet:** Häufigkeit jeder Option pro Multiple-Choice-Frage
+- **Template-Variable:** `statistiken` (dict: survey_id → frage_id → option_value → anzahl)
+- **UI-Zustand:** Statische HTML/CSS-Balkengrafik, keine Interaktion
+
+### Zustand: Umfrage-Fragetypen (Normalnutzer)
+- **Fragetyp `single_choice`** (Einzelauswahl, Radio): Genau 1 Antwort erlaubt
+  - **Validierung:** Serverseitig wie `multiple_choice` – Wert muss in `options.value` enthalten sein
+  - **Fehlerzustand:** Kein Wert bei Pflichtfrage → Fehlermeldung, kein Vorwärts-Redirect
+- **Fragetyp `rating`** (Bewertung 1–5): Ganzzahl 1–5
+  - **Validierung:** Wert muss "1"–"5" sein
+  - **Fehlerzustand:** Kein Wert bei Pflichtfrage → Fehlermeldung
+- **Fragetyp `multiple_choice`** (Mehrfachauswahl, Checkbox): Mehrere Antworten möglich
+  - **Speicherformat:** Kommaseparierter String in Session (z. B. `"opt1,opt2"`)
+  - **Fehlerzustand:** Kein Wert bei Pflichtfrage → Fehlermeldung
+
+```
+

@@ -722,3 +722,183 @@ main {
     color: var(--color-white);
     border-color: var(--color-hs-kehl);
 }
+
+/* ==========================================================================
+   Fragetyp: Bewertung (rating) – Sterne-Anzeige (kein JavaScript)
+   Vgl. requirements.md Kap. 12.3, Fragetyp 'rating' und Kap. 13 Zustandsdefinition
+   ========================================================================== */
+.rating-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0 8px;
+}
+
+.rating-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 10px 14px;
+    border: 2px solid var(--color-hs-kehl);
+    border-radius: var(--border-radius);
+    transition: all var(--transition-speed);
+    min-width: 52px;
+    text-align: center;
+}
+
+/* Radio-Button ausblenden – nur der Stern zählt optisch */
+.rating-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.rating-stern {
+    font-size: 1.6rem;
+    color: var(--color-hs-kehl);
+    line-height: 1;
+}
+
+.rating-zahl {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    margin-top: 4px;
+}
+
+.rating-label:hover,
+.rating-label.rating-aktiv {
+    background: var(--color-hs-kehl);
+    color: var(--color-white);
+}
+
+.rating-label:hover .rating-stern,
+.rating-label.rating-aktiv .rating-stern {
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255,215,0,0.7);
+}
+
+.rating-label:hover .rating-zahl,
+.rating-label.rating-aktiv .rating-zahl {
+    color: rgba(255,255,255,0.8);
+}
+
+.rating-beschriftung {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   Fragetyp: Mehrfachauswahl (multiple_choice) – Checkbox-Styling
+   ========================================================================== */
+.custom-checkbox {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--color-hs-kehl);
+    border-radius: 4px;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: transparent;
+    transition: all var(--transition-speed);
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+/* Wenn Checkbox gecheckt → Hintergrund + Häkchen sichtbar */
+.option-label input[type="checkbox"]:checked ~ .custom-checkbox {
+    background: var(--color-hs-kehl);
+    color: #fff;
+}
+
+.option-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* ==========================================================================
+   Admin Tab 1: Statistik-Balkengrafik (HTML/CSS – kein JavaScript)
+   Vgl. requirements.md Kap. 12.1 Funktion 1.4 und Kap. 13 Zustandsdefinition
+   ========================================================================== */
+.statistik-umfrage-block {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e8ecf0;
+}
+
+.statistik-umfrage-titel {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-hs-kehl);
+    margin: 0 0 12px;
+}
+
+.statistik-frage-block {
+    margin-bottom: 20px;
+}
+
+.statistik-frage-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-dark);
+    margin: 0 0 10px;
+}
+
+.statistik-balken-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.statistik-balken-zeile {
+    display: grid;
+    grid-template-columns: 180px 1fr 90px;
+    align-items: center;
+    gap: 12px;
+}
+
+.statistik-option-label {
+    font-size: 0.85rem;
+    color: var(--color-text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.statistik-balken-track {
+    height: 20px;
+    background: #e8ecf0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.statistik-balken-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-hs-kehl), #3a82d4);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    min-width: 2px;
+}
+
+.statistik-anzahl {
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    text-align: right;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .statistik-balken-zeile {
+        grid-template-columns: 1fr;
+    }
+    .rating-group {
+        gap: 8px;
+    }
+}

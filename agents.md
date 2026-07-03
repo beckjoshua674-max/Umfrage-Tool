@@ -25,6 +25,9 @@ Automatische Synchronisation der requirements.md: Jede Änderung an der Architek
 
 Deutsche Kommentare: Alle Code-Kommentare, Erklärungen und Dokumentationen innerhalb des Quellcodes müssen zwingend auf Deutsch verfasst werden.
 
+Zustandsdokumentation vor jeder Implementierung (Pflicht): Bevor eine neue Funktion implementiert oder eine bestehende geändert wird, müssen alle betroffenen Zustände (States) vollständig definiert und in der requirements.md eingetragen sein – niemals nachträglich. Dies umfasst: welche Session-Variablen angelegt/geändert/gelöscht werden, welche Cookies gesetzt werden (Name, Lebensdauer, Flags), welche Daten dauerhaft im Backend gespeichert werden, welche temporären UI-Zustände im Browser entstehen und welche Fehlerzustände auftreten können (inkl. HTTP-Statuscode und System-Reaktion). Diese Regel gilt für beide Agenten (Antigravity und Codex) und für jeden Änderungstyp (Feature, Bugfix, Refactoring). Vgl. requirements.md Kap. 13.
+
+
 4. Git- & Commit-Standards
 Wenn du dem menschlichen Nutzer Commit-Nachrichten vorschlägst, verwende strikt das "Conventional Commits"-Format auf Deutsch oder Englisch (z. B. feat(frontend): python rendering logik hinzugefuegt, fix(design): primaerfarbe auf #334aff aktualisiert, refactor(backend): python routen umstrukturiert).
 
