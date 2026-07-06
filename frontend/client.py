@@ -21,7 +21,7 @@ def auto_logout_admin_on_leave():
         pfad = request.path
         # Wenn der Pfad nicht mit /admin beginnt und auch nicht /logout, /static oder /favicon.ico ist,
         # wird die Session gelöscht (automatischer Logout bei URL-Wechsel).
-        if not pfad.startswith('/admin') and pfad not in ['/logout', '/favicon.ico'] and not pfad.startswith('/static'):
+        if not pfad.startswith('/admin') and not pfad.startswith('/api') and pfad not in ['/logout', '/favicon.ico'] and not pfad.startswith('/static'):
             session.clear()
             flash("Ihre Administrator-Sitzung wurde beim Verlassen der Admin-Ansicht automatisch beendet.")
 
@@ -676,10 +676,14 @@ def admin_results_export():
     # Kopfzeile
     schreiber.writerow(['Ergebnis-ID', 'Zeitstempel', 'Umfrage-ID', 'Frage-ID', 'Antwort'])
 
+    survey_id_filter = request.args.get('survey_id')
+
     for ergebnis in alle_ergebnisse:
         eid       = ergebnis.get('result_id', ergebnis.get('id', '–'))
         zeitpunkt = ergebnis.get('received_at', ergebnis.get('timestamp', '–'))
         sid       = ergebnis.get('survey_id', '–')
+        if survey_id_filter and sid != survey_id_filter:
+            continue
         for frage_id, antwort in ergebnis.get('answers', {}).items():
             schreiber.writerow([eid, zeitpunkt, sid, frage_id, antwort])
 
@@ -692,6 +696,44 @@ def admin_results_export():
         mimetype='text/csv; charset=utf-8',
         headers={'Content-Disposition': f'attachment; filename="{dateiname}"'}
     )
+
+@app.route('/api/survey', methods=['GET'])
+@login_required
+def api_get_survey():
+    """Proxy-Route zum Laden der JSON-Struktur einer Umfrage."""
+    import json as json_mod
+    role = request.args.get('role', 'student')
+    survey_id = request.args.get('survey_id', '')
+
+    # Wenn survey_id übergeben wurde, bestimmen wir die Rolle
+    if survey_id:
+        if 'student' in survey_id.lower():
+            role = 'student'
+        elif 'professor' in survey_id.lower():
+            role = 'professor'
+
+    # Vom Backend abrufen
+    try:
+        response = requests.get(
+            f"{BACKEND_API_URL}/survey?role={role}",
+            headers=get_auth_headers(),
+            timeout=2
+        )
+        if response.status_code == 401:
+            session.clear()
+            return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen."}), 401, {"Content-Type": "application/json"}
+        if response.ok:
+            return response.text, 200, {"Content-Type": "application/json"}
+    except Exception:
+        pass
+
+    # Lokaler Fallback
+    try:
+        dateiname = f"survey_{role}.json"
+        with open(BACKEND_DATEN_PFAD / dateiname, "r", encoding="utf-8") as f:
+            return f.read(), 200, {"Content-Type": "application/json"}
+    except Exception as e:
+        return json_mod.dumps({"status": "error", "message": str(e)}), 500, {"Content-Type": "application/json"}
 
 @app.route('/admin/surveys/save', methods=['POST'])
 @login_required

@@ -47,19 +47,27 @@
     {% if ns.hat_daten %}
     <div class="card" style="margin-bottom: 24px;">
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <div>
-                <h2>Auswertung: Auswahl- und Bewertungsfragen</h2>
-                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">Antworthäufigkeiten als Balkengrafik - serverseitig berechnet</p>
+            <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                <h2>Auswertung</h2>
+                {% if umfragen %}
+                <select id="stats-filter-select" class="form-control" style="width: auto; max-width: 300px; display: inline-block; padding: 6px 12px; font-size: 0.9rem;" onchange="filterStatistiken(this.value)">
+                    <option value="alle">Alle Umfragen anzeigen</option>
+                    {% for u in umfragen %}
+                    <option value="{{ u.survey_id }}">{{ u.title }} ({{ u._rolle }})</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
             </div>
             <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+               onclick="handleCsvExport(event, 'stats')">
                 CSV exportieren
             </a>
         </div>
         <div class="card-body">
             {% for sid, fragen_stats in statistiken.items() %}
             {% if fragen_stats %}
-            <div class="statistik-umfrage-block">
+            <div class="statistik-umfrage-block" data-survey-id="{{ sid }}">
                 <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
                 {% for frage_label, zaehler in fragen_stats.items() %}
                 {% set gesamt = zaehler['_gesamt'] %}
@@ -106,7 +114,8 @@
                 </p>
             </div>
             <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+               onclick="handleCsvExport(event, 'results')">
                 CSV exportieren
             </a>
         </div>
@@ -186,29 +195,24 @@
      ============================================================ -->
 <div id="tab-bearbeiten" class="admin-tab-inhalt">
     <div class="bearbeiten-layout">
-        <!-- Linke Spalte: Umfragen-Liste -->
+        <!-- Linke Spalte: Umfragen-Auswahl -->
         <div class="card umfragen-liste-card">
             <div class="card-header">
                 <h2>Vorhandene Umfragen</h2>
             </div>
-            <div class="card-body" style="padding: 0;">
+            <div class="card-body" style="padding: 16px;">
                 {% if umfragen %}
-                <ul class="umfragen-liste">
-                    {% for u in umfragen %}
-                    <li class="umfrage-list-item" id="list-item-{{ loop.index }}"
-                        onclick="ladeUmfrageInEditor({{ u | tojson }}, {{ loop.index }})">
-                        <div class="umfrage-list-title">{{ u.title }}</div>
-                        <div class="umfrage-list-meta">
-                            <span class="badge badge-secondary">{{ u._rolle }}</span>
-                            <span style="color: var(--color-text-light); font-size: 0.8rem;">
-                                {{ u.questions|length }} Fragen
-                            </span>
-                        </div>
-                    </li>
-                    {% endfor %}
-                </ul>
+                <div class="form-group">
+                    <label for="umfrage-auswahl-select" class="form-label" style="font-weight: 500;">Umfrage wählen:</label>
+                    <select id="umfrage-auswahl-select" class="form-control" onchange="umfrageAuswahlGeaendert(this)">
+                        <option value="">-- Bitte wählen --</option>
+                        {% for u in umfragen %}
+                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">{{ u.title }} ({{ u._rolle }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 {% else %}
-                <div style="padding: 20px;" class="alert alert-info">Keine Umfragen gefunden.</div>
+                <div class="alert alert-info">Keine Umfragen gefunden.</div>
                 {% endif %}
             </div>
         </div>
@@ -216,11 +220,11 @@
         <!-- Rechte Spalte: Editor (leer bis Auswahl) -->
         <div class="card umfrage-editor-card" id="bearbeiten-editor-card">
             <div class="card-header">
-                <h2 id="bearbeiten-titel">Umfrage waehlen</h2>
+                <h2 id="bearbeiten-titel">Umfrage wählen</h2>
             </div>
             <div class="card-body" id="bearbeiten-inhalt">
                 <div class="leer-hinweis">
-                    Waehlen Sie links eine Umfrage aus, um sie zu bearbeiten.
+                    Wählen Sie eine Umfrage aus, um sie zu bearbeiten.
                 </div>
             </div>
         </div>
@@ -326,10 +330,70 @@
         }
     });
 
+    // Sektion 1: Statistik-Filterung nach Umfrage
+    function filterStatistiken(surveyId) {
+        document.querySelectorAll('.statistik-umfrage-block').forEach(function(block) {
+            if (surveyId === 'alle' || block.dataset.surveyId === surveyId) {
+                block.style.display = '';
+            } else {
+                block.style.display = 'none';
+            }
+        });
+    }
+
+    var aktiverErgebnisFilter = 'alle';
+
+    function handleCsvExport(event, section) {
+        var filterVal = 'alle';
+        if (section === 'stats') {
+            var sel = document.getElementById('stats-filter-select');
+            if (sel) filterVal = sel.value;
+        } else {
+            filterVal = aktiverErgebnisFilter;
+        }
+
+        if (filterVal === 'alle') {
+            return;
+        }
+
+        event.preventDefault();
+
+        var modal = document.getElementById('csv-export-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+
+        var btnFiltered = document.getElementById('modal-btn-filtered');
+        var btnAll = document.getElementById('modal-btn-all');
+        var btnCancel = document.getElementById('modal-btn-cancel');
+
+        var newBtnFiltered = btnFiltered.cloneNode(true);
+        var newBtnAll = btnAll.cloneNode(true);
+        var newBtnCancel = btnCancel.cloneNode(true);
+
+        btnFiltered.parentNode.replaceChild(newBtnFiltered, btnFiltered);
+        btnAll.parentNode.replaceChild(newBtnAll, btnAll);
+        btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
+
+        newBtnFiltered.addEventListener('click', function() {
+            modal.style.display = 'none';
+            window.location.href = '/admin/results/export?survey_id=' + encodeURIComponent(filterVal);
+        });
+
+        newBtnAll.addEventListener('click', function() {
+            modal.style.display = 'none';
+            window.location.href = '/admin/results/export';
+        });
+
+        newBtnCancel.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+    }
+
     // -------------------------------------------------------
     // Tab 1: Ergebnis-Filterung nach Umfrage
     // -------------------------------------------------------
     function filterErgebnisse(surveyId, schaltflaeche) {
+        aktiverErgebnisFilter = surveyId;
         // Alle Filter-Buttons deaktivieren
         document.querySelectorAll('.filter-btn').forEach(function(b) {
             b.classList.remove('aktiv');
@@ -366,21 +430,44 @@
     // -------------------------------------------------------
     // Tab 2: Umfrage in Bearbeiten-Editor laden
     // -------------------------------------------------------
-    function ladeUmfrageInEditor(umfrage, index) {
-        // Aktives Listenelement markieren
-        document.querySelectorAll('.umfrage-list-item').forEach(function(el) {
-            el.classList.remove('aktiv');
-        });
-        document.getElementById('list-item-' + index).classList.add('aktiv');
+    function umfrageAuswahlGeaendert(selectElement) {
+        var surveyId = selectElement.value;
+        if (!surveyId) {
+            document.getElementById('bearbeiten-titel').textContent = 'Umfrage wählen';
+            document.getElementById('bearbeiten-inhalt').innerHTML = '<div class="leer-hinweis">Wählen Sie eine Umfrage aus, um sie zu bearbeiten.</div>';
+            return;
+        }
 
+        var opt = selectElement.options[selectElement.selectedIndex];
+        var rolle = opt.getAttribute('data-rolle');
+
+        fetch('/api/survey?role=admin&survey_id=' + encodeURIComponent(surveyId))
+            .then(function(res) {
+                if (res.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                return res.json();
+            })
+            .then(function(umfrage) {
+                if (umfrage && umfrage.survey_id) {
+                    umfrage._rolle = rolle;
+                    ladeUmfrageInEditor(umfrage);
+                } else {
+                    window.showNotification('Fehler beim Laden der Umfragedefinition.', 'error');
+                }
+            })
+            .catch(function(err) {
+                window.showNotification('Netzwerkfehler beim Laden der Umfragedefinition: ' + err, 'error');
+            });
+    }
+
+    function ladeUmfrageInEditor(umfrage) {
         // Titel setzen
         document.getElementById('bearbeiten-titel').textContent = umfrage.title;
 
-        // Fragen-Liste in den Erstellen-Editor laden und zu Tab 3 wechseln NICHT –
-        // stattdessen Editor direkt in Tab 2 aufbauen
         var inhalt = document.getElementById('bearbeiten-inhalt');
 
-        // Fragen als bearbeitbare HTML-Liste rendern
         var html = '<div class="builder-status builder-status-erfolg" style="margin-bottom:16px;">'
                  + 'Umfrage geladen: <strong>' + escapeHtml(umfrage.title) + '</strong>'
                  + ' <span class="badge badge-secondary" style="margin-left:8px;">' + escapeHtml(umfrage._rolle) + '</span>'
@@ -779,5 +866,20 @@
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 </script>
+
+<!-- CSV-Export Abfrage-Modal -->
+<div id="csv-export-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">
+    <div style="background:#ffffff; padding:24px; border-radius:8px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.2); pointer-events:auto; text-align:center;">
+        <h3 style="margin-top:0; color:var(--color-hs-kehl);">CSV-Export Optionen</h3>
+        <p style="margin: 15px 0 25px; color:var(--color-text); font-size:0.95rem; line-height:1.4;">
+            Sie haben aktuell einen Filter aktiv. Möchten Sie nur die Daten der gefilterten Umfrage oder alle Umfragedaten exportieren?
+        </p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <button id="modal-btn-filtered" class="btn-primary" style="width:100%; padding:12px;">Nur gefilterte Umfrage exportieren</button>
+            <button id="modal-btn-all" class="btn-secondary" style="width:100%; padding:12px;">Alle Umfragen exportieren</button>
+            <button id="modal-btn-cancel" class="btn-secondary" style="width:100%; padding:12px; background-color:#e0e0e0; color:#333333; border-color:#e0e0e0;">Abbrechen</button>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

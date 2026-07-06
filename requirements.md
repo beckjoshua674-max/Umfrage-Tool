@@ -127,7 +127,7 @@ Der Client durchläuft folgende Phasen:
 
 ### 4.2 Serverseitige Strikt-Validierung (Single Source of Truth)
 Bei einem `POST /api/results` validiert der Server zwingend:
-1. **Payload-Format:** Request-Body ist strukturell valides JSON.
+1. **Payload-Format:** Request-Body is strukturell valides JSON.
 2. **Referenzielle Integrität:** Die übergebene `survey_id` existiert im Dateisystem.
 3. **Vollständigkeit:** Alle Pflichtfelder (`required: true`) enthalten eine nicht-leere Antwort.
 4. **Wertebereich:** Die eingereichten Werte entsprechen exakt den in der Definition spezifizierten `value`-Optionen.
@@ -140,7 +140,7 @@ Schlägt eine Validierung fehl, wird die Speicherung verweigert (kein Schreibzug
 
 ### 5.1 Bereich Ergebnisse anzeigen
 Die Darstellung im Tab "Ergebnisse anzeigen" erfolgt in folgender hierarchischer Reihenfolge:
-* **Sektion 1 (Oben - Priorität 1):** Aggregierte Auswertung (Durchschnittswerte, Häufigkeiten der Antworten) als visuelle Balkendiagramme. Ein Button "CSV exportieren" ist direkt in dieser Sektion platziert, um den sofortigen Export der Daten zu ermöglichen.
+* **Sektion 1 (Oben - Priorität 1):** Die aggregierte Auswertung mit dem Titel "Auswertung" (ohne technische Beschreibungstexte bezüglich der serverseitigen Berechnung). Direkt neben der Überschrift befindet sich ein Dropdown-Auswahlmenü (Filter), mit dem der Administrator Statistiken und Balkendiagramme der Antworthäufigkeiten nach einer spezifischen Umfrage filtern kann. Bei Auswahl einer Umfrage aktualisieren sich die Daten sofort. Ein Button "CSV exportieren" ist in dieser Sektion platziert, um den Export der aggregierten Daten zu ermöglichen.
 * **Sektion 2 (Unten - Priorität 2):** Darunter folgt die Sektion für die einzelnen, eingegangenen Rohdaten aus der CSV-Datei.
 * **Button-Platzierung in Sektion 2:** Der zweite "CSV exportieren"-Button für den Rohdaten-Export befindet sich auf Höhe der Überschrift dieser zweiten Sektion ("Eingegangene Ergebnisse"), rechts neben der Überschrift angeordnet. Darunter folgt die chronologische Tabelle der Einzeldaten.
 
@@ -150,11 +150,20 @@ Das Bearbeiten und Aktualisieren bestehender Umfragen wird wie folgt geregelt:
 2. Nach Modifikation im Formular-Editor sendet der Client die aktualisierte Struktur via `POST /api/surveys` an das Backend.
 3. Das Backend nimmt den Request unter JWT-Absicherung entgegen, validiert die Definition und überschreibt die bestehende JSON-Datei im Dateisystem.
 
+### 5.3 Verhalten der CSV-Export-Schaltflächen bei aktiver Filterung
+Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt hat (Sektion 1 via Dropdown-Menü oder Sektion 2 via Klick-Filter-Buttons) und auf eine der beiden "CSV exportieren"-Schaltflächen klickt, wird die Ausführung des Downloads unterbrochen und eine Benutzerabfrage als rein textbasiertes Browser-Modal geschaltet:
+* **Option A ("Nur gefilterte Umfrage exportieren"):** Lädt eine CSV-Datei herunter, die ausschließlich die Zeilen und Antworten der aktuell im Filter ausgewählten Umfrage-ID enthält.
+* **Option B ("Alle Umfragen exportieren"):** Ignoriert den aktuellen Filter und lädt die komplette CSV-Datei mit sämtlichen im System existierenden Ergebnissen herunter.
+* **Abbrechen-Schaltfläche:** Schließt das Modal ohne Aktion.
+* **Verhalten ohne aktiven Filter:** Wenn kein Filter ausgewählt ist (Anzeige steht auf "Alle Umfragen" bzw. "Alle"), entfällt das Modal und der Button startet direkt den Download der vollständigen CSV-Datei.
+* Das Modal ist in reinem, sachlichem Deutsch verfasst, verwendet korrekte deutsche Umlaute und ist absolut frei von Emojis oder Symbolen.
+
 ---
 
-## 6. Strikte Format- und UI-Vorgaben: Verbot von Emojis und grafischen Symbolen
+## 6. Strikte Format- und UI-Vorgaben: Verbot von Emojis und Umlaut-Ersatzschreibweisen
 * Im gesamten Projekt – sowohl in allen Dokumentationsdateien als auch im Quellcode und der gesamten grafischen Benutzeroberfläche (UI) – ist die Verwendung von Emojis, Piktogrammen, grafischen Symbolen (z. B. SVG-Icons) oder Sonderzeichen (wie Pfeilen, Häkchen oder Warndreiecken) strengstens untersagt.
 * Jegliche visuelle Kennzeichnung oder Navigation hat ausschließlich über rein sachlichen, professionellen Text zu erfolgen.
+* **Strikte Umlaut-Regel (Encoding-Erzwingung):** Sämtliche Systemtexte, Bezeichnungen, Labels und Elemente der Benutzeroberfläche müssen echte deutsche Umlaute (ä, ö, ü, ß) verwenden. Jede Form von Ersatzschreibweisen (ae, oe, ue) oder fehlerhaften ASCII/ISO-Codierungen im Frontend ist technisch unzulässig. Die Zeichenkodierung ist im gesamten Projekt ausnahmslos auf UTF-8 konfiguriert.
 
 ---
 
