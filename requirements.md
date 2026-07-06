@@ -23,6 +23,7 @@ Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (B
 * **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/survey` (mit optionaler Rolle), `POST /api/results`.
 * **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
 * Bei fehlendem oder ungültigem Token antwortet der Server mit `401 Unauthorized`. Besitzt das Token nicht die Rolle `admin`, antwortet der Server mit `403 Forbidden`.
+* **Prävention von Browser-Caching (Cache-Busting):** Um die Anzeige veralteter Datensätze im Dashboard zu verhindern, sendet das Backend bei `GET /api/results` den HTTP-Response-Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`. Das Frontend hängt zusätzlich bei jedem API-Aufruf an diesen Endpunkt einen dynamischen Zeitstempel-Parameter (`?t=Zeitstempel`) als Cache-Buster an.
 
 ---
 
@@ -95,9 +96,13 @@ Die Antworten werden als JSON-Objekt übertragen.
 ### 3.1 Dynamisches UI-Rendering
 Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelieferten JSON-Objekts.
 * **Typ `text`**: Generierung einer HTML-Textarea.
-* **Typ `single_choice`**: Generierung von Radio-Buttons.
-* **Typ `multiple_choice`**: Generierung von Checkboxen.
-* **Typ `rating`**: Generierung einer 1-5 Skala.
+* **Typ `single_choice`**: Generierung von Radio-Buttons, die im Frontend als eckige Kästchen gerendert werden.
+  * **Erzwingung der Single-Choice-Logik:** Das System stellt auf Clientseite strikt sicher, dass zu jedem Zeitpunkt maximal eine Option der Frage ausgewählt sein kann. Das Markieren einer anderen Option deselektiert die vorherige automatisch. Die Javascript-Logik wird separat pro Formular/Frage isoliert (z. B. durch Iteration über das jeweilige Formular/Frage-Container), sodass das Klicken einer Option nur Elemente derselben Frage deselektiert. Im finalen Antwort-Payload an den Server wird ein einzelner String-Wert übergeben.
+* **Typ `multiple_choice`**: Generierung von Checkboxen, die im Frontend ebenfalls als eckige Kästchen gerendert werden.
+* **Typ `rating`**: Generierung einer horizontalen Reihe aus 5 eckigen Boxen (Zahlen 1 bis 5).
+  * **Aktiv-Markierung & visuelles Feedback:** Sobald der Nutzer eine Zahl anklickt, wird die entsprechende Box sofort als aktiv markiert (durch farbliches Füllen der Box und weiße Textfarbe der Zahl). Alle anderen Zahlenboxen dieser Frage werden deselektiert.
+  * **Orientierungshilfe (Legende):** Direkt über der Zahlenreihe (1 bis 5) wird eine verständliche Beschriftung als Legende eingeblendet, die die Pole der Skala definiert („Skala: 1 = Sehr gut, 5 = Ungenügend“).
+* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definiertes Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
 
 ### 3.2 Client-Zustandsmanagement (States)
 Der Client durchläuft folgende Phasen:
@@ -109,11 +114,12 @@ Der Client durchläuft folgende Phasen:
 ### 3.3 Speicher und Sicherheit
 * **Missbrauchsschutz (Completed-Cookie):** Nach erfolgreichem Absenden wird ein Cookie namens `survey_completed_<survey_id>` gesetzt (Ablaufzeit: 30 Tage, `httponly=True`, `samesite=Lax`). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt die Danke-Seite.
 * **JWT-Verarbeitung:** Das Admin-JWT wird im Authorization-Header (`Authorization: Bearer <token>`) mitgeführt. Bei einer HTTP `401 Unauthorized` Antwort des Servers wird die Client-Session sofort verworfen und ein Redirect zur Login-Seite durchgeführt.
+* **Ausschließen von Client-Caching auf Seitenebene:** Die Frontend-Route `/admin` liefert in ihrer HTTP-Antwort explizit den Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` aus, um ein Caching der gesamten HTML-Seite durch den Browser zu blockieren.
 
 ### 3.4 Bereinigung des Admin-Headers und automatisches Session-Handling
 * Oben rechts im Admin-Header befindet sich ausschließlich ein einziger "Logout"-Button.
 * Alle redundanten Navigationselemente wie "Abmelden", "Zurück zur Startseite" oder "Lockout" sind vollständig entfernt.
-* Beim Klick auf "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
+* Beim Klick on "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
 * **Automatischer Logout bei URL-Wechsel:** Navigiert ein angemeldeter Administrator manuell aus dem Admin-Bereich heraus (z. B. durch Eingabe einer anderen URL wie der Startseite oder der Umfrage-Teilnahmeseite), wird die Session serverseitig beim Abfangen der Anfrage sofort und automatisch gelöscht. Das JWT-Token wird ohne manuelle Interaktion verworfen, um den Administrator-Zustand vollständig zu bereinigen.
 
 ---
@@ -127,7 +133,7 @@ Der Client durchläuft folgende Phasen:
 
 ### 4.2 Serverseitige Strikt-Validierung (Single Source of Truth)
 Bei einem `POST /api/results` validiert der Server zwingend:
-1. **Payload-Format:** Request-Body is strukturell valides JSON.
+1. **Payload-Format:** Request-Body ist strukturell valides JSON.
 2. **Referenzielle Integrität:** Die übergebene `survey_id` existiert im Dateisystem.
 3. **Vollständigkeit:** Alle Pflichtfelder (`required: true`) enthalten eine nicht-leere Antwort.
 4. **Wertebereich:** Die eingereichten Werte entsprechen exakt den in der Definition spezifizierten `value`-Optionen.
@@ -157,6 +163,13 @@ Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt h
 * **Abbrechen-Schaltfläche:** Schließt das Modal ohne Aktion.
 * **Verhalten ohne aktiven Filter:** Wenn kein Filter ausgewählt ist (Anzeige steht auf "Alle Umfragen" bzw. "Alle"), entfällt das Modal und der Button startet direkt den Download der vollständigen CSV-Datei.
 * Das Modal ist in reinem, sachlichem Deutsch verfasst, verwendet korrekte deutsche Umlaute und ist absolut frei von Emojis oder Symbolen.
+
+### 5.4 Import-Funktion für Umfragedefinitionen
+Im Menüpunkt "Umfrage erstellen" (Tab 3) ist im oberen Bereich ein standardisiertes Datei-Upload-Feld mit der Beschriftung „Umfrage importieren“ vorhanden.
+* **Funktionsweise:** Der Administrator lädt eine lokal gespeicherte JSON-Datei hoch. Der Client liest diese Datei ein und validiert die Struktur vollständig auf Clientseite vor der Übertragung an das Backend.
+* **Validierung (Konformitätsprüfung):** Geprüft werden die Pflichtfelder `survey_id`, `title`, `role` sowie das Array `questions` (jede Frage benötigt `id`, `type`, `label`, `required` und bei Auswahlfragen ein nicht-leeres Options-Array `options` mit `value` und `text`).
+* **Fehlermeldungen:** Tritt ein Validierungsfehler auf, wird der Sendevorgang blockiert. Das System zeigt dem Administrator ganz oben eine detaillierte, sachliche rote Meldung mit genauer Nennung der fehlerhaften Frage (z. B. „Fehlendes Pflichtfeld 'type' in Frage 2“).
+* **Erfolgsfall:** Ist die Datei valide, wird sie automatisch per POST `/api/surveys` an den Server übertragen.
 
 ---
 

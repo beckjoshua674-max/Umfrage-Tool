@@ -6,7 +6,7 @@ import json
 import datetime
 import requests
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 
 app = Flask(__name__)
 app.secret_key = 'ask-alma-secret-key-dev'
@@ -117,7 +117,7 @@ def login():
                 return redirect(url_for('admin'))
             return redirect(url_for('survey', role=test_user["role"]))
 
-    flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.")
+    flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.", "error")
     return redirect(url_for('login_page', role=desired_role))
 
 
@@ -566,7 +566,9 @@ def lade_ergebnisse():
     import io
     # Versuch 1: Backend-API GET /api/results
     try:
-        res = requests.get(f"{BACKEND_API_URL}/results", headers=get_auth_headers(), timeout=2)
+        import time
+        t = int(time.time())
+        res = requests.get(f"{BACKEND_API_URL}/results?t={t}", headers=get_auth_headers(), timeout=2)
         if res.status_code == 401:
             raise PermissionError("Sitzung abgelaufen")
         if res.ok:
@@ -647,10 +649,12 @@ def admin():
     alle_umfragen = lade_alle_umfragen_lokal()
     # Antwortstatistiken für Balkengrafik serverseitig berechnen (kein JS, vgl. Kap. 12.4)
     alle_statistiken = berechne_statistiken(alle_umfragen, alle_ergebnisse)
-    return render_template('admin.html',
-                           umfragen=alle_umfragen,
-                           ergebnisse=alle_ergebnisse,
-                           statistiken=alle_statistiken)
+    resp = make_response(render_template('admin.html',
+                                         umfragen=alle_umfragen,
+                                         ergebnisse=alle_ergebnisse,
+                                         statistiken=alle_statistiken))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
 
 @app.route('/admin/results/export', methods=['GET'])
 @login_required

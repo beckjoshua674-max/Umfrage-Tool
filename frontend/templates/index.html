@@ -77,7 +77,7 @@
                     <input type="radio" name="answer" value="{{ opt.value }}"
                            {% if question.required %}required{% endif %}
                            {% if saved_answer == opt.value %}checked{% endif %}>
-                    <span class="custom-radio"></span>
+                    <span class="custom-checkbox">X</span>
                     {{ opt.text }}
                 </label>
                 {% endfor %}
@@ -118,7 +118,7 @@
                 <label class="option-label {% if opt.value in saved_list %}option-selected{% endif %}" style="cursor:pointer;">
                     <input type="checkbox" name="answer" value="{{ opt.value }}"
                            {% if opt.value in saved_list %}checked{% endif %}>
-                    <span class="custom-checkbox">[X]</span>
+                    <span class="custom-checkbox">X</span>
                     {{ opt.text }}
                 </label>
                 {% endfor %}
@@ -151,19 +151,18 @@
             <input type="hidden" name="question_id" value="{{ question.id }}">
 
             <p class="question-label">{{ question.label }}</p>
-            <div class="rating-group">
-                {% for stern in [1, 2, 3, 4, 5] %}
-                <label class="rating-label {% if saved_answer == stern|string %}rating-aktiv{% endif %}">
-                    <input type="radio" name="answer" value="{{ stern }}"
+            <p class="rating-legende" style="color: var(--color-text-light); font-size: 0.9rem; margin-bottom: 12px; font-weight: 500;">
+                Skala: 1 = Sehr gut, 5 = Ungenügend
+            </p>
+            <div class="rating-group" style="display:flex; gap:15px; margin-bottom: 24px;">
+                {% for wert in [1, 2, 3, 4, 5] %}
+                <label class="rating-label {% if saved_answer == wert|string %}rating-aktiv{% endif %}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 50px; height: 50px; border: 2px solid var(--color-hs-kehl); border-radius: 4px; cursor: pointer; user-select: none; transition: all var(--transition-speed); font-weight: bold; font-size: 1.2rem; color: var(--color-hs-kehl); min-width: 50px;">
+                    <input type="radio" name="answer" value="{{ wert }}"
                            {% if question.required %}required{% endif %}
-                           {% if saved_answer == stern|string %}checked{% endif %}>
-                    <span class="rating-zahl">Bewertung {{ stern }}</span>
+                           {% if saved_answer == wert|string %}checked{% endif %}>
+                    <span class="rating-zahl-num">{{ wert }}</span>
                 </label>
                 {% endfor %}
-            </div>
-            <div class="rating-beschriftung">
-                <span>Sehr schlecht</span>
-                <span>Sehr gut</span>
             </div>
 
             <div class="step-nav">
@@ -210,6 +209,53 @@ document.querySelectorAll('form').forEach(function(form) {
             }, 50);
             submitBtn.innerHTML = 'Wird übermittelt...';
         }
+    });
+});
+
+// Update option-selected class dynamically when choices change
+document.querySelectorAll('.option-label input').forEach(function(input) {
+    input.addEventListener('change', function() {
+        if (input.type === 'radio') {
+            var name = input.name;
+            var form = input.closest('form');
+            form.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+                var lbl = r.closest('.option-label');
+                if (lbl) {
+                    if (r.checked) {
+                        lbl.classList.add('option-selected');
+                    } else {
+                        lbl.classList.remove('option-selected');
+                    }
+                }
+            });
+        } else if (input.type === 'checkbox') {
+            var lbl = input.closest('.option-label');
+            if (lbl) {
+                if (input.checked) {
+                    lbl.classList.add('option-selected');
+                } else {
+                    lbl.classList.remove('option-selected');
+                }
+            }
+        }
+    });
+});
+
+// Update rating-aktiv class dynamically when choices change
+document.querySelectorAll('.rating-label input').forEach(function(input) {
+    input.addEventListener('change', function() {
+        var name = input.name;
+        var form = input.closest('form');
+        form.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+            var lbl = r.closest('.rating-label');
+            if (lbl) {
+                if (r.checked) {
+                    lbl.classList.add('rating-aktiv');
+                } else {
+                    lbl.classList.remove('rating-aktiv');
+                }
+            }
+        });
     });
 });
 </script>

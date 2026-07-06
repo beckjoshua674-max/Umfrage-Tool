@@ -810,13 +810,15 @@ main {
     margin-right: 8px;
 }
 
-/* Wenn Checkbox gecheckt → Hintergrund + Häkchen sichtbar */
-.option-label input[type="checkbox"]:checked ~ .custom-checkbox {
+/* Wenn Checkbox oder Radio gecheckt → Hintergrund + Häkchen/X sichtbar */
+.option-label input[type="checkbox"]:checked ~ .custom-checkbox,
+.option-label input[type="radio"]:checked ~ .custom-checkbox {
     background: var(--color-hs-kehl);
     color: #fff;
 }
 
-.option-label input[type="checkbox"] {
+.option-label input[type="checkbox"],
+.option-label input[type="radio"] {
     position: absolute;
     opacity: 0;
     width: 0;

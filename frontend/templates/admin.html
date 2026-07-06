@@ -243,6 +243,18 @@
             <!-- Status-Meldung -->
             <div id="erstellen-status" class="builder-status" style="display:none;"></div>
 
+            <!-- Import-Bereich -->
+            <div class="import-bereich" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
+                <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.1rem; color: var(--color-text-dark);">Umfrage importieren</h3>
+                <p style="margin: 0 0 12px; color: var(--color-text-light); font-size: 0.85rem; line-height: 1.4;">
+                    Laden Sie eine lokal gespeicherte JSON-Datei hoch, um eine fertige Umfragestruktur direkt zu importieren und zu speichern.
+                </p>
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <input type="file" id="import-datei-input" accept=".json" style="font-size: 0.9rem;">
+                    <button class="btn-primary" onclick="importiereUmfrage()" style="padding: 6px 16px; font-size: 0.85rem;">Importieren & Speichern</button>
+                </div>
+            </div>
+
             <!-- Umfrage-Metadaten -->
             <div class="erstellen-meta">
                 <div class="form-row">
@@ -533,7 +545,6 @@
     }
 
     function frageTypGeaendertBearbeiten(index, neuerTyp, umfrageJson) {
-        // Bei Typwechsel Options-Bereich einblenden/ausblenden
         var optBereich = document.getElementById('bearbeiten-optionen-' + index);
         if (neuerTyp === 'single_choice' || neuerTyp === 'multiple_choice') {
             if (!optBereich) {
@@ -541,11 +552,16 @@
                 var div = document.createElement('div');
                 div.className = 'optionen-bereich';
                 div.id = 'bearbeiten-optionen-' + index;
-                div.innerHTML = '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">&#10133; Option hinzufügen</button>';
+                div.innerHTML = '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">Option hinzufügen</button>';
                 karte.appendChild(div);
+                // Standardmäßig 2 leere Optionen hinzufügen
+                optionHinzufuegenBearbeiten(index);
+                optionHinzufuegenBearbeiten(index);
+            } else {
+                optBereich.style.display = '';
             }
         } else if (optBereich) {
-            optBereich.remove();
+            optBereich.style.display = 'none';
         }
     }
 
@@ -565,17 +581,19 @@
                 label: labelInput ? labelInput.value : '',
                 required: reqInput ? reqInput.checked : false
             };
-            var optContainer = document.getElementById('bearbeiten-optionen-' + id);
-            if (optContainer) {
-                frage.options = [];
-                optContainer.querySelectorAll('.option-input').forEach(function(inp, oi) {
-                    if (inp.value.trim()) {
-                        frage.options.push({
-                            value: 'opt' + (oi + 1) + '_' + inp.value.toLowerCase().replace(/\s+/g, '_').substring(0, 20),
-                            text: inp.value.trim()
-                        });
-                    }
-                });
+            if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
+                var optContainer = document.getElementById('bearbeiten-optionen-' + id);
+                if (optContainer) {
+                    frage.options = [];
+                    optContainer.querySelectorAll('.option-input').forEach(function(inp, oi) {
+                        if (inp.value.trim()) {
+                            frage.options.push({
+                                value: 'opt' + (oi + 1) + '_' + inp.value.toLowerCase().replace(/\s+/g, '_').substring(0, 20),
+                                text: inp.value.trim()
+                            });
+                        }
+                    });
+                }
             }
             if (frage.label.trim()) fragen.push(frage);
         });
@@ -595,7 +613,7 @@
         .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
         .then(function(res) {
             if (res.ok) {
-                zeigeBearbeitenStatus('&#10003; Umfrage "' + escapeHtml(titel) + '" erfolgreich gespeichert!', 'erfolg');
+                zeigeBearbeitenStatus('Umfrage "' + escapeHtml(titel) + '" erfolgreich gespeichert!', 'erfolg');
             } else {
                 zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
             }
@@ -633,7 +651,35 @@
     // -------------------------------------------------------
     // Tab 3: Neue Umfrage erstellen – Fragen-Builder
     // -------------------------------------------------------
+    function datenAusDomInListeSpeichern() {
+        fragenListe.forEach(function(frage) {
+            var labelFeld = document.getElementById('neu-label-' + frage.id);
+            if (labelFeld) {
+                frage.label = labelFeld.value;
+            }
+            var reqFeld = document.getElementById('neu-req-' + frage.id);
+            if (reqFeld) {
+                frage.required = reqFeld.checked;
+            }
+            var typFeld = document.getElementById('neu-typ-' + frage.id);
+            if (typFeld) {
+                frage.typ = typFeld.value;
+            }
+
+            var optContainer = document.getElementById('neu-optionen-' + frage.id);
+            if (optContainer) {
+                var optInputs = optContainer.querySelectorAll('.option-input');
+                var opts = [];
+                optInputs.forEach(function(inp) {
+                    opts.push(inp.value);
+                });
+                frage._cachedOptions = opts;
+            }
+        });
+    }
+
     function frageHinzufuegen() {
+        datenAusDomInListeSpeichern();
         frageZaehler++;
         fragenListe.push({ id: frageZaehler, typ: 'text' });
         renderFragenListe();
@@ -645,11 +691,13 @@
     }
 
     function frageEntfernen(fragenId) {
+        datenAusDomInListeSpeichern();
         fragenListe = fragenListe.filter(function(f) { return f.id !== fragenId; });
         renderFragenListe();
     }
 
     function frageVerschieben(fragenId, richtung) {
+        datenAusDomInListeSpeichern();
         var idx = fragenListe.findIndex(function(f) { return f.id === fragenId; });
         var neuerIdx = idx + richtung;
         if (neuerIdx < 0 || neuerIdx >= fragenListe.length) return;
@@ -691,8 +739,9 @@
             html += '</select>';
 
             // Pflichtfeld-Toggle
+            var isReq = (frage.required !== undefined) ? frage.required : true;
             html += '<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;white-space:nowrap;">'
-                 + '<input type="checkbox" id="neu-req-' + frage.id + '" checked> Pflichtfeld</label>';
+                 + '<input type="checkbox" id="neu-req-' + frage.id + '"' + (isReq ? ' checked' : '') + '> Pflichtfeld</label>';
 
             // Verschieben / Löschen
             html += '<div style="display:flex;gap:4px;">';
@@ -703,18 +752,25 @@
             html += '</div>'; // frage-karte-kopf
 
             // Fragen-Label
-            html += '<input type="text" class="form-control" id="neu-label-' + frage.id + '" placeholder="Fragetext eingeben..." style="margin-top:10px;">';
+            var labelVal = frage.label || '';
+            html += '<input type="text" class="form-control" id="neu-label-' + frage.id + '" value="' + escapeHtml(labelVal) + '" placeholder="Fragetext eingeben..." style="margin-top:10px;">';
 
-            // Optionen-Bereich (nur für Auswahl-Typen)
-            if (frage.typ === 'single_choice' || frage.typ === 'multiple_choice') {
-                html += '<div class="optionen-bereich" id="neu-optionen-' + frage.id + '">';
-                html += '<div class="option-zeile"><input type="text" class="form-control option-input" placeholder="Option 1">'
+            // Optionen-Bereich (wird für single/multiple choice angezeigt, aber wir behalten die Eingaben im State!)
+            var hatOptionen = (frage.typ === 'single_choice' || frage.typ === 'multiple_choice');
+            html += '<div class="optionen-bereich" id="neu-optionen-' + frage.id + '" style="' + (hatOptionen ? '' : 'display:none;') + '">';
+            
+            var optTexte = frage._cachedOptions || ['', ''];
+            if (optTexte.length === 0) {
+                optTexte = ['', ''];
+            }
+            optTexte.forEach(function(optText, oi) {
+                html += '<div class="option-zeile"><input type="text" class="form-control option-input" value="' + escapeHtml(optText) + '" placeholder="Option ' + (oi + 1) + '">'
                       + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button></div>';
-                html += '<div class="option-zeile"><input type="text" class="form-control option-input" placeholder="Option 2">'
-                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button></div>';
-                html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">Option hinzufügen</button>';
-                html += '</div>';
-            } else if (frage.typ === 'rating') {
+            });
+            html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">Option hinzufügen</button>';
+            html += '</div>';
+
+            if (frage.typ === 'rating') {
                 html += '<div class="optionen-bereich" style="color:var(--color-text-light);font-size:0.9rem;">'
                       + 'Bewertungsskala 1-5 (wird automatisch angezeigt)'
                       + '</div>';
@@ -726,7 +782,7 @@
     }
 
     function typGeaendert(fragenId, neuerTyp) {
-        // Typ im Array aktualisieren
+        datenAusDomInListeSpeichern();
         var frage = fragenListe.find(function(f) { return f.id === fragenId; });
         if (frage) frage.typ = neuerTyp;
         renderFragenListe();
@@ -856,6 +912,124 @@
             }
         })
         .catch(function(e) { zeigeErstellenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+    }
+
+    // -------------------------------------------------------
+    // Import-Validierung und -Ablauf
+    // -------------------------------------------------------
+    function importiereUmfrage() {
+        var input = document.getElementById('import-datei-input');
+        if (!input || !input.files || input.files.length === 0) {
+            window.showNotification('Bitte wählen Sie zuerst eine JSON-Datei für den Import aus.', 'error');
+            return;
+        }
+
+        var datei = input.files[0];
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                var jsonStr = e.target.result;
+                var daten = JSON.parse(jsonStr);
+
+                var fehler = validiereImportierteStruktur(daten);
+                if (fehler.length > 0) {
+                    var fehlerText = 'Die importierte Datei ist fehlerhaft: ' + fehler.join('; ');
+                    window.showNotification(fehlerText, 'error');
+                    return;
+                }
+
+                window.showNotification('Importierte Datei ist valide. Wird übermittelt...', 'info');
+
+                fetch('/admin/surveys/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(daten)
+                })
+                .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+                .then(function(res) {
+                    if (res.ok) {
+                        window.showNotification('Umfrage "' + escapeHtml(daten.title) + '" erfolgreich importiert und gespeichert!', 'info');
+                        input.value = '';
+                        setTimeout(function() { window.location.reload(); }, 2500);
+                    } else {
+                        window.showNotification('Serverfehler beim Importieren: ' + (res.daten.message || 'Unbekannter Fehler'), 'error');
+                    }
+                })
+                .catch(function(err) {
+                    window.showNotification('Netzwerkfehler beim Importieren: ' + err, 'error');
+                });
+
+            } catch (err) {
+                window.showNotification('Fehler beim Einlesen der Datei: Die Datei enthält kein gültiges JSON.', 'error');
+            }
+        };
+
+        reader.onerror = function() {
+            window.showNotification('Fehler beim Lesen der Datei.', 'error');
+        };
+
+        reader.readAsText(datei);
+    }
+
+    function validiereImportierteStruktur(daten) {
+        var fehler = [];
+        if (!daten) {
+            fehler.push("Dateizuordnung leer");
+            return fehler;
+        }
+
+        if (!daten.survey_id || typeof daten.survey_id !== 'string' || !daten.survey_id.trim()) {
+            fehler.push("Fehlendes oder ungültiges Pflichtfeld 'survey_id'");
+        }
+        if (!daten.title || typeof daten.title !== 'string' || !daten.title.trim()) {
+            fehler.push("Fehlendes oder ungültiges Pflichtfeld 'title'");
+        }
+        if (!daten.role || typeof daten.role !== 'string' || (daten.role !== 'student' && daten.role !== 'professor')) {
+            fehler.push("Fehlendes oder ungültiges Pflichtfeld 'role' (muss 'student' oder 'professor' sein)");
+        }
+
+        if (!daten.questions || !Array.isArray(daten.questions)) {
+            fehler.push("Fehlendes oder ungültiges Fragen-Array ('questions')");
+        } else {
+            daten.questions.forEach(function(frage, i) {
+                var indexHuman = i + 1;
+                if (!frage.id || typeof frage.id !== 'string' || !frage.id.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'id' in Frage " + indexHuman);
+                }
+                if (!frage.type || typeof frage.type !== 'string' || !frage.type.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'type' in Frage " + indexHuman);
+                } else {
+                    var gueltigeTypen = ['text', 'single_choice', 'multiple_choice', 'rating'];
+                    if (gueltigeTypen.indexOf(frage.type) === -1) {
+                        fehler.push("Ungültiger Fragetyp '" + frage.type + "' in Frage " + indexHuman + " (erlaubt sind: text, single_choice, multiple_choice, rating)");
+                    }
+                }
+                if (!frage.label || typeof frage.label !== 'string' || !frage.label.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'label' in Frage " + indexHuman);
+                }
+                if (frage.required === undefined || typeof frage.required !== 'boolean') {
+                    fehler.push("Fehlendes Pflichtfeld 'required' (muss boolesch sein) in Frage " + indexHuman);
+                }
+
+                if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
+                    if (!frage.options || !Array.isArray(frage.options) || frage.options.length === 0) {
+                        fehler.push("Fehlendes oder leeres Options-Array ('options') für Auswahlfrage in Frage " + indexHuman);
+                    } else {
+                        frage.options.forEach(function(opt, oi) {
+                            var optIndex = oi + 1;
+                            if (opt.value === undefined || opt.value === null || String(opt.value).trim() === '') {
+                                fehler.push("Fehlendes 'value' in Option " + optIndex + " von Frage " + indexHuman);
+                            }
+                            if (opt.text === undefined || opt.text === null || String(opt.text).trim() === '') {
+                                fehler.push("Fehlendes 'text' in Option " + optIndex + " von Frage " + indexHuman);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        return fehler;
     }
 
     // -------------------------------------------------------
