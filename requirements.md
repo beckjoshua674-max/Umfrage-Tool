@@ -31,182 +31,125 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 * **Microservices:** Auslagerung von Diensten (z. B. Authentifizierung, Daten-Auswertung).
 
 ## 7. API-Schnittstellen (Frontend <-> Backend)
-Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
+Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden. Die Kommunikation erfolgt zustandslos über HTTP-REST.
 
-**Sicherheitsvorgabe (JWT-Token):**
+**Sicherheitsvorgabe (JWT-Token & Rollen):**
 - **Öffentliche Endpunkte (kein Token nötig):** `GET /api/health`, `POST /api/login`, `GET /api/survey`, `POST /api/results`.
-- **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich, nur Rolle `admin`):** `POST /api/survey/questions`, `DELETE /api/survey/questions/<id>`, `GET /api/results`.
-- Wird ein geschützter Endpunkt ohne oder mit ungültigem Token aufgerufen, muss das Backend mit `401 Unauthorized` antworten.
+- **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich, nur Admin):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
+- Wird ein geschützter Endpunkt ohne oder mit ungültigem Token aufgerufen, muss das Backend mit `401 Unauthorized` antworten. Besitzt der Token nicht die Rolle `admin`, wird `403 Forbidden` zurückgegeben.
 
-### 7.0 GET `/api/health`
-- **Beschreibung:** Liefert einen einfachen Betriebsstatus des Backends, damit Frontend und Entwicklung prüfen können, ob der Server erreichbar ist.
-- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
-- **Erwartete Antwort (JSON):**
+---
+
+### 7.1 GET `/api/health`
+- **Beschreibung:** Überprüft die Erreichbarkeit und Betriebsbereitschaft des Backends.
+- **Anfrage:** Keine Parameter, kein Body.
+- **Antworten:**
+  - **`200 OK`**: Backend ist voll funktionsfähig.
+    ```json
+    { "status": "ok", "service": "ask-alma-backend" }
+    ```
+  - **`503 Service Unavailable`**: Backend oder kritische Subsysteme sind nicht erreichbar.
+
+### 7.2 POST `/api/login`
+- **Beschreibung:** Authentifizierung für den administrativen Zugang.
+- **Anfrage-Payload (JSON):**
   ```json
   {
-    "status": "ok",
-    "service": "ask-alma-backend"
-  }
-  ```
-- **Statuscode:** `200 OK` bei erreichbarem Backend.
-
-### 7.0.1 POST `/api/login`
-- **Beschreibung:** Authentifiziert einen Benutzer. Aktuell ist nur die Admin-Rolle loginpflichtig.
-- **Erwarteter Payload (JSON):**
-  ```json
-  {
-    "username": "...",
+    "username": "admin",
     "password": "..."
   }
   ```
-- **Test-Credentials (für Entwicklung):** Das Backend muss mindestens folgende Testbenutzer akzeptieren:
-  - `admin` / `admin123` (Rolle: `admin`)
-- **Erwartete Antwort:** Status `200 OK` mit JWT Token und der zugewiesenen Rolle.
-  ```json
-  {
-    "token": "jwt_token_xyz",
-    "role": "admin"
-  }
-  ```
-- **Fehlerantwort:** Status `401 Unauthorized`, wenn Login fehlschlägt.
-
-### 7.1 GET `/api/survey`
-- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend. **Kein Token erforderlich.**
-- **Erwartete Anfrage:** Query-Parameter `?role=student|professor`. Das Backend **muss** je nach Rolle einen **unterschiedlichen Fragenkatalog** ausliefern. Kein Request-Body.
-- **Rollenbasierte Datendateien:** Das Backend lädt die Fragen aus getrennten JSON-Dateien:
-  - `backend/data/survey_student.json` → wird bei `?role=student` ausgeliefert.
-  - `backend/data/survey_professor.json` → wird bei `?role=professor` ausgeliefert.
-  - Fehlt der Parameter `role`, wird standardmäßig `survey_student.json` geladen.
-- **Erwartete Antwort (JSON):**
-  ```json
-  {
-    "survey_id": "ask_alma_eval_v1",
-    "title": "Ask Alma - Evaluation",
-    "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens von Ask Alma.",
-    "questions": [
-      {
-        "id": "q1",
-        "type": "text",
-        "label": "1. Welche Erfahrungen haben Sie bisher mit dem Tool \"Ask Alma\" gemacht?",
-        "required": true
-      },
-      {
-        "id": "q2",
-        "type": "multiple_choice",
-        "label": "2. Wie bewerten Sie die generelle Nützlichkeit von \"Ask Alma\" für Ihr Studium?",
-        "options": [
-          { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
-          { "value": "wenig_nuetzlich", "text": "Wenig nützlich" }
-        ],
-        "required": true
-      }
-    ]
-  }
-  ```
-
-### 7.2 POST `/api/results`
-- **Beschreibung:** Sendet die ausgefüllten Umfrageantworten vom Frontend an das Backend.
-- **Content-Type:** `application/json`
-- **Erwarteter Payload (JSON):**
-  ```json
-  {
-    "survey_id": "ask_alma_eval_v1",
-    "timestamp": "2026-06-12T10:45:00Z",
-    "answers": {
-      "q1": "Antworttext...",
-      "q2": "sehr_nuetzlich"
-    }
-  }
-  ```
-- **Validierungsregeln:**
-  - `survey_id` muss ein nicht-leerer String sein und zur vom Backend ausgelieferten Umfrage passen.
-  - `timestamp` ist optional, muss bei Übergabe aber ein ISO-8601-String sein.
-  - `answers` muss ein JSON-Objekt sein, dessen Keys den Frage-IDs aus `GET /api/survey` entsprechen.
-  - Pflichtfragen (`required: true`) müssen eine nicht-leere Antwort enthalten.
-  - Antworten auf `multiple_choice`-Fragen müssen exakt einem `value` der jeweiligen `options` entsprechen.
-- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
-  ```json
-  {
-    "status": "created",
-    "result_id": "uuid-der-gespeicherten-antwort"
-  }
-  ```
-- **Erwartete Fehlerantwort:** Status `400 Bad Request`, wenn der Payload nicht valide ist.
-  ```json
-  {
-    "status": "error",
-    "message": "Beschreibung des Validierungsfehlers"
-  }
-  ```
-
-### 7.3 POST `/api/survey/questions`
-- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu.
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
-- **Erwarteter Payload (JSON):** Ein einzelnes Frage-Objekt (ähnlich der Objekte in `GET /api/survey`).
-- **Erwartete Antwort:** Status `201 Created`.
-
-### 7.4 DELETE `/api/survey/questions/<id>`
-- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID.
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
-- **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
-
-### 7.5 GET `/api/results`
-- **Beschreibung:** Liefert alle bisher gespeicherten Umfrage-Antworten. (Wird im Admin-Dashboard genutzt)
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. JWT-Token im Header erforderlich.
-- **Erwartete Antwort (JSON):** Array von Ergebnis-Objekten.
-  ```json
-  [
+- **Antworten:**
+  - **`200 OK`**: Erfolgreich authentifiziert. Liefert JWT-Token und Rolle.
+    ```json
     {
-      "result_id": "uuid",
-      "received_at": "2026-06-12T10:45:00Z",
-      "survey_id": "ask_alma_eval_v1",
-      "answers": {
-        "q1": "Antworttext...",
-        "q2": "sehr_nuetzlich"
-      }
+      "token": "jwt_token_xyz",
+      "role": "admin"
     }
-  ]
-  ```
+    ```
+  - **`401 Unauthorized`**: Ungültige Anmeldedaten.
+    ```json
+    { "status": "error", "message": "Ungültiger Benutzername oder Passwort" }
+    ```
 
-### 7.6 POST `/api/surveys/create`
-- **Beschreibung:** Speichert eine vollständige, neu erstellte Umfrage-Definition (erstellt via SurveyJS Creator im Admin-Bereich) als neue JSON-Datei im Backend. Ersetzt oder ergänzt die rollenbasierten Survey-Dateien.
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. JWT-Token im Header `Authorization: Bearer <token>` erforderlich. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei falscher Rolle → `403 Forbidden`.
-- **Content-Type:** `application/json`
-- **Erwarteter Payload (JSON):** Ein vollständiges SurveyJS-kompatibles JSON-Objekt mit mind. folgenden Feldern:
+### 7.3 GET `/api/survey`
+- **Beschreibung:** Liefert die Struktur und Fragen einer Umfrage. **Kein Token erforderlich.**
+- **Query-Parameter:** `role` (optional, Werte: `student` oder `professor`). Bestimmt, welche Umfragedefinition geladen wird. Standardwert ist `student`.
+- **Antworten:**
+  - **`200 OK`**: Liefert die Umfragedefinition im JSON-Format.
+    ```json
+    {
+      "survey_id": "ask_alma_eval_student",
+      "title": "Evaluation Ask Alma",
+      "questions": [
+        {
+          "id": "q1",
+          "type": "single_choice",
+          "label": "Wie oft nutzen Sie Ask Alma?",
+          "required": true,
+          "options": [
+            { "value": "taeglich", "text": "Täglich" },
+            { "value": "nie", "text": "Nie" }
+          ]
+        }
+      ]
+    }
+    ```
+  - **`404 Not Found`**: Die angeforderte Umfrage für die Rolle existiert nicht.
+
+### 7.4 POST `/api/surveys`
+- **Beschreibung:** Erstellt eine neue Umfragedefinition oder überschreibt eine bestehende. **Nur für Admin.**
+- **Header:** `Authorization: Bearer <token>`
+- **Anfrage-Payload (JSON):** Das vollständige JSON-Objekt der Umfragedefinition (analog zu GET `/api/survey`).
+- **Antworten:**
+  - **`201 Created`**: Erfolgreich gespeichert.
+    ```json
+    { "status": "created", "survey_id": "ask_alma_eval_student" }
+    ```
+  - **`400 Bad Request`**: Fehlerhafte Definition (z.B. fehlende Pflichtfelder im JSON-Modell).
+  - **`401 Unauthorized`**: Token fehlt oder ist ungültig.
+  - **`403 Forbidden`**: Token gültig, aber unzureichende Berechtigungen (kein Admin).
+
+### 7.5 POST `/api/results`
+- **Beschreibung:** Übermittelt die ausgefüllten Antworten einer Umfrage zur persistenten Speicherung. **Kein Token erforderlich.**
+- **Anfrage-Payload (JSON):**
   ```json
   {
-    "survey_id": "eindeutige-id-als-string",
-    "title": "Titel der Umfrage",
-    "role": "student|professor",
-    "questions": [
-      {
-        "id": "q1",
-        "type": "text|multiple_choice",
-        "label": "Fragetext",
-        "required": true,
-        "options": [
-          { "value": "opt1", "text": "Anzeigetext" }
-        ]
-      }
-    ]
+    "survey_id": "ask_alma_eval_student",
+    "timestamp": "2026-07-06T10:00:00Z",
+    "answers": {
+      "q1": "taeglich"
+    }
   }
   ```
-  - `survey_id`: Pflichtfeld. Nicht-leerer String. Wird als Dateiname verwendet (z.B. `survey_{role}.json`).
-  - `role`: Pflichtfeld. Muss `student` oder `professor` sein. Bestimmt, welche Datei überschrieben wird (`survey_student.json` oder `survey_professor.json`).
-  - `title`: Pflichtfeld. Nicht-leerer String.
-  - `questions`: Pflichtfeld. Array mit mind. 1 Frage-Objekt.
-- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
-  ```json
-  {
-    "status": "created",
-    "survey_id": "eindeutige-id",
-    "saved_as": "survey_student.json"
-  }
-  ```
-- **Fehlerantworten:**
-  - `400 Bad Request`: Payload fehlt oder ist unvollständig.
-  - `401 Unauthorized`: Token fehlt oder ist ungültig.
-  - `403 Forbidden`: Rolle ist nicht `admin`.
+- **Antworten:**
+  - **`201 Created`**: Antworten wurden erfolgreich entgegengenommen und persistent in die CSV-Datei geschrieben.
+    ```json
+    { "status": "created", "result_id": "uuid-des-ergebnisses" }
+    ```
+  - **`400 Bad Request`**: Validierung fehlgeschlagen (Details im Fehlerbody).
+    ```json
+    { "status": "error", "message": "Pflichtfeld q1 wurde nicht ausgefüllt." }
+    ```
+
+### 7.6 GET `/api/results`
+- **Beschreibung:** Ruft alle bisher eingegangenen Ergebnisse ab. **Nur für Admin.**
+- **Header:** `Authorization: Bearer <token>`
+- **Antworten:**
+  - **`200 OK`**: Gibt die Ergebnisse als relationale CSV-Daten zurück.
+    - **Content-Type:** `text/csv; charset=utf-8`
+    - **Inhalt:** CSV-Format mit Spalten wie `result_id;timestamp;survey_id;question_id;answer`.
+  - **`401 Unauthorized`**: Token fehlt oder ist ungültig.
+  - **`403 Forbidden`**: Fehlende Admin-Rolle.
+
+### 7.7 DELETE `/api/surveys/{survey_id}`
+- **Beschreibung:** Löscht eine bestehende Umfragedefinition. **Nur für Admin.**
+- **Header:** `Authorization: Bearer <token>`
+- **Antworten:**
+  - **`204 No Content`**: Erfolgreich gelöscht, kein Content im Body.
+  - **`401 Unauthorized`**: Token fehlt oder ist ungültig.
+  - **`403 Forbidden`**: Fehlende Admin-Rolle.
+  - **`404 Not Found`**: Die angegebene `survey_id` existiert nicht.
 
 ## 8. Abhängigkeiten (Backend)
 Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:
@@ -225,37 +168,52 @@ requests==2.31.0
 Das System erzwingt eine strikte Trennung der Zustände (State), um die Architekturprinzipien verteilter Systeme einzuhalten:
 
 **Server (Backend / Single Source of Truth):**
-- **Umfragen:** Definition und Struktur der fertigen Umfragen (JSON).
-- **Ergebnisse:** Die finalen Daten der vollständig abgeschlossenen Umfragen.
-- **Hinweis:** Das Backend agiert für die eigentliche Durchführung komplett zustandslos (stateless).
+- **Umfragen:** Definition und Struktur der fertigen Umfragen (gespeichert als JSON, z. B. `survey_student.json`).
+- **Ergebnisse:** Die finalen Daten der vollständig abgeschlossenen Umfragen werden relational in CSV-Dateien (z. B. `results_<survey_id>.csv`) gespeichert. Dies geschieht strikt **append-only** (Anhängen am Dateiende - Immutability by Design), um einen transaktionssicheren Durchsatz zu gewährleisten.
+- **Hinweis:** Das Backend agiert für die eigentliche Durchführung komplett zustandslos (stateless) und verwaltet keine Nutzersessions.
 
 **Server (Frontend / Flask):**
 - **Sitzungszustand:** Verwaltung der laufenden Nutzersitzungen (via Session-Cookie).
-- **In Bearbeitung:** Temporäre Speicherung der Antworten von noch nicht abgeschlossenen Umfragen (Drafts).
-- **Fortschritt:** Tracking, welche Frage aktuell bearbeitet wird und ob alle Bedingungen erfüllt wurden.
-- **Autorisierung:** Rollenverwaltung (Sicherstellung der Admin-Rechte für den Editor).
-- **Versionskontrolle:** Abgleich der Umfrageversion während der Bearbeitung, um Konflikte bei zeitgleichen Änderungen zu vermeiden.
+- **In Bearbeitung:** Temporäre Speicherung der Antworten von noch nicht abgeschlossenen Umfragen (Drafts) in der Session.
+- **Fortschritt:** Tracking, welche Frage aktuell bearbeitet wird und ob alle Bedingungen erfüllt wurden (`survey_max_step`).
+- **Autorisierung:** Speichern des JWT-Tokens und des Admin-Status nach erfolgreichem Login.
+- **Versionskontrolle:** Abgleich der Umfrageversion während der Bearbeitung (`survey_id`), um Konflikte bei zeitgleichen Änderungen zu vermeiden.
 
-**Client (Normaler Nutzer):**
-- **Flüchtiger UI-Zustand:** Die aktuellen Eingaben liegen nur im Arbeitsspeicher des Browsers, bis auf „Weiter" oder „Absenden" geklickt wird.
-- **Missbrauchsschutz (Cookies):** Nach erfolgreicher Teilnahme setzt Flask ein lokales Cookie (z. B. `survey_completed_<survey_id>=true` für 30 Tage), um einfache Mehrfachteilnahmen ohne Login-Zwang zu blockieren (Frictionless Security).
+**Client (Normaler Nutzer / Browser):**
+- **Flüchtiger UI-Zustand:** Die aktuellen Eingaben liegen nur im Arbeitsspeicher des Browsers (DOM), bis auf „Weiter" oder „Absenden" geklickt wird.
+- **Missbrauchsschutz (Cookies - Frictionless Security):** Nach erfolgreicher Teilnahme setzt das Frontend ein langlebiges Cookie (z. B. `survey_completed_<survey_id>=true` für 30 Tage). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt direkt die Danke-Seite.
 
-**Client (Admin):**
-- **Editor-Zustand:** Hält die Struktur und die Fragen von im Aufbau befindlichen, nicht finalen Umfragen im Arbeitsspeicher des Browsers (via SurveyJS), bis diese gespeichert und ans Backend gesendet werden.
+**Client (Admin / Browser):**
+- **Token-Verwaltung:** Speichert das JWT lokal (z. B. in der Session oder im localStorage) und hängt es bei jedem API-Aufruf als `Authorization: Bearer <token>` an.
+- **Sicherheit bei Token-Ablauf:** Empfängt der Client bei einem API-Call einen `401 Unauthorized` Fehler, verwirft er das gespeicherte Token sofort deterministisch und erzwingt einen Redirect auf die Login-Seite.
+- **Editor-Zustand:** Hält die Struktur von im Aufbau befindlichen Umfragen im Arbeitsspeicher des Browsers (via SurveyJS), bis diese gespeichert und an die API gesendet werden.
+
+### 10.1 Client-Zustände (States)
+Der Client durchläuft beim Ausfüllen einer Umfrage deterministisch folgende Phasen:
+1. **Init**: Laden und Verarbeiten der Umfragedefinition von der API.
+2. **In-Progress**: Interaktive Beantwortungsphase. Der Client trackt und speichert den Fortschritt und verhindert durch Route Guarding ein Überspringen von Seiten.
+3. **Submitting**: Die gesammelten Antworten werden zu einem JSON-Payload aggregiert und asynchron versendet. Die UI wird für weitere Eingaben blockiert.
+4. **Completed**: Die Daten wurden erfolgreich auf dem Server gesichert; das Session-State wird bereinigt und das Abschluss-Cookie im Browser verankert.
+
+---
 
 ## 11. Ablaufsteuerung & Datenvalidierung (Server-Side Enforcement)
-Um die Datenintegrität sicherzustellen und Manipulationen durch den Endnutzer (z. B. URL-Spoofing, Überspringen von Fragen) zu verhindern, gelten folgende serverseitige Regeln für den Frontend-Server (Flask):
+Um die Datenintegrität sicherzustellen und Manipulationen durch den Endnutzer zu verhindern, gelten folgende Regeln:
 
 **Schutz vor URL-Manipulation (Route Guarding):**
-Flask speichert den Fortschritt des Nutzers strikt in der serverseitigen Nutzersession (z. B. `current_page = 1`).
-Versucht ein Nutzer, über die URL eine Seite aufzurufen, die er noch nicht erreicht hat (z. B. manueller Aufruf von `/survey/page/3`, obwohl er auf Seite 1 ist), leitet Flask ihn automatisch via HTTP 302 Redirect auf seine korrekte `current_page` zurück. Dies geschieht reibungslos und unsichtbar.
+Flask speichert den Fortschritt des Nutzers strikt in der serverseitigen Nutzersession (z. B. `survey_max_step`). Versucht ein Nutzer, über die URL eine Frage aufzurufen, die er noch nicht freigeschaltet hat, leitet Flask ihn automatisch via HTTP 302 Redirect auf seinen korrekten Schritt zurück.
 
 **Serverseitige Pflichtfeld-Prüfung:**
-HTML5-Validierungen (`<input required>`) dienen nur der visuellen Nutzerführung und gelten als unsicher ("Never trust the client").
-Bei jedem Formular-Submit prüft die Flask-Route die empfangenen Daten zwingend gegen die Original-JSON-Definition der Umfrage. Fehlt die Antwort auf eine Pflichtfrage, wird der Fortschritt verweigert und die aktuelle Seite mit einer entsprechenden Fehlermeldung neu gerendert.
+HTML5-Validierungen (`<input required>`) dienen nur der visuellen Nutzerführung und gelten als unsicher. Bei jedem Formular-Submit prüft die Flask-Route die empfangenen Daten zwingend gegen die Original-JSON-Definition der Umfrage.
 
-**Payload-Integrität beim Abschluss:**
-Erst wenn Flask intern verifiziert hat, dass alle Seiten der Umfrage linear durchlaufen und alle Pflichtfelder beantwortet wurden, darf der gesammelte Zustand als finaler Payload an das Backend (`POST /api/results`) gesendet werden.
+**Serverseitige Strikt-Validierung (Single Source of Truth im Backend):**
+Das Backend vertraut dem Client nicht. Bei einem `POST /api/results` validiert der Server den Payload zwingend anhand folgender Kriterien:
+1. **Payload-Format:** Ist der übermittelte Request-Body strukturell valides JSON?
+2. **Referenzielle Integrität:** Existiert die im Payload übergebene `survey_id` als aktive Umfragedefinition im Dateisystem des Backends?
+3. **Vollständigkeit:** Sind alle in der Umfragedefinition als `required` markierten Fragen im Antwort-Payload enthalten und nicht leer?
+4. **Wertebereichs-Prüfung:** Entsprechen die eingereichten Werte bei Auswahlfragen (z.B. `single_choice`, `multiple_choice`, `rating`) exakt den in der Umfragedefinition zugelassenen Schlüsseln (z.B. den Werten im `options`-Array oder dem Bereich 1-5)?
+
+Schlägt eine dieser Validierungen fehl, lehnt das Backend die Speicherung ab, führt keinen Datei-Write aus und liefert zwingend ein **`400 Bad Request`** mit einer präzisen Fehlermeldung im JSON-Response-Body zurück.
 
 ## 12. Admin-Oberfläche: Funktionsanforderungen
 
@@ -370,9 +328,9 @@ Die Zustandsdefinition muss **vor oder zeitgleich** mit der Implementierung in d
 ### Zustand: CSV-Export (serverseitig, zustandslos)
 - **Kein Session-Zustand** – Export wird bei jedem Aufruf frisch generiert
 - **Route:** GET /admin/results/export
-- **Backend-Zustand:** Liest alle JSON-Dateien aus `backend/data/results/`
+- **Backend-Zustand:** Liest die relationalen Ergebnisse direkt aus den append-only CSV-Dateien des Backends (`backend/data/results_<survey_id>.csv`).
 - **UI-Zustand:** Browser-Download-Dialog (via Content-Disposition Header)
-- **Fehlerzustand:** Keine Ergebnisse → leere CSV mit Header-Zeile
+- **Fehlerzustand:** Keine Ergebnisse → leere CSV mit Header-Zeile (Result-ID;Timestamp;Survey-ID;Question-ID;Answer)
 
 ### Zustand: Statistik-Anzeige (Admin Tab 1)
 - **Kein eigener State** – wird serverseits beim Laden von /admin berechnet

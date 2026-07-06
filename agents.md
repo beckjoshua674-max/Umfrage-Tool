@@ -15,7 +15,7 @@ Strikte Abgrenzung: Ändere KEINE Dateien außerhalb deines zugewiesenen Bereich
 3. Workflow-Regeln
 Immer den Kontext lesen: Bevor du neuen Code generierst, lies immer diese agents.md und die requirements.md, um den aktuellen Projektstatus und die Architekturregeln zu verstehen.
 
-Strikter Python- & HTML/CSS-Stack: Die gesamte Anwendung muss mit Python entwickelt werden. Datenaustausch und Interaktivität müssen über Python abgewickelt werden (z. B. serverseitiges Rendering über Templates wie Jinja2 oder standardmäßige HTML-Formularübermittlungen). Das Schreiben oder Generieren von JavaScript ist strengstens untersagt – **Ausnahme:** Das Admin-Template `admin_builder.html` darf JavaScript ausschließlich für den SurveyJS Creator (CDN-Einbindung) und den zugehörigen API-Aufruf (`POST /api/surveys/create`) verwenden.
+Strikter Python- & HTML/CSS-Stack: Die gesamte Anwendung muss mit Python entwickelt werden. Datenaustausch und Interaktivität müssen über Python abgewickelt werden (z. B. serverseitiges Rendering über Templates wie Jinja2 oder standardmäßige HTML-Formularübermittlungen). Das Schreiben oder Generieren von JavaScript ist strengstens untersagt – **Ausnahme:** Das Admin-Template `admin_builder.html` darf JavaScript ausschließlich für den SurveyJS Creator (CDN-Einbindung) und den zugehörigen API-Aufruf (`POST /api/surveys`) verwenden.
 
 Keine destruktiven Überschreibungen: Wenn du die Datenstruktur oder die Rendering-Logik ändern musst, kommuniziere die erforderlichen Änderungen in den Code-Kommentaren, damit der andere Agent seine Arbeit entsprechend anpassen kann.
 
@@ -34,4 +34,4 @@ Wenn du dem menschlichen Nutzer Commit-Nachrichten vorschlägst, verwende strikt
 5. Aktueller Projektstatus
 Frontend: UI im HS-Kehl-Design (Farbe #2160a6), Schritt-für-Schritt-Umfrageführung, Admin-Dashboard mit Login (admin/admin123), SurveyJS-Builder-Seite implementiert.
 
-Backend: Grundlegende Endpunkte (GET /api/health, GET /api/survey, POST /api/results) funktionieren. Ausstehend: POST /api/login, POST /api/surveys/create, rollenbasierte Survey-Auslieferung, GET /api/results.
+Backend: Grundlegende Endpunkte (GET /api/health, GET /api/survey, POST /api/results) funktionieren. Ausstehend: POST /api/login, POST /api/surveys, DELETE /api/surveys/{survey_id}, rollenbasierte Survey-Auslieferung, GET /api/results.
