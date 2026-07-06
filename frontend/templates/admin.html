@@ -3,13 +3,6 @@
 {% block title %}Ask Alma - Admin Dashboard{% endblock %}
 {% block header_title %}Admin Dashboard{% endblock %}
 {% block header_subtitle %}Umfragen und Ergebnisse verwalten{% endblock %}
-{% block header_actions %}
-<div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
-    <span style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">&#128100; {{ session.get('username', 'Admin') }}</span>
-    <a href="{{ url_for('logout') }}" class="btn-outline-light">Abmelden</a>
-    <a href="{{ url_for('index') }}" class="btn-outline-light">&larr; Startseite</a>
-</div>
-{% endblock %}
 
 {% block content %}
 
@@ -21,45 +14,100 @@
 <!-- Tab-Navigation -->
 <div class="admin-tabs">
     <button class="admin-tab-btn aktiv" data-tab="ergebnisse" onclick="zeigeTab('ergebnisse')">
-        &#128202; Ergebnisse anzeigen
+        Ergebnisse anzeigen
         <span class="tab-badge">{{ ergebnisse|length }}</span>
     </button>
     <button class="admin-tab-btn" data-tab="bearbeiten" onclick="zeigeTab('bearbeiten')">
-        &#9999;&#65039; Umfragen bearbeiten
+        Umfragen bearbeiten
         <span class="tab-badge">{{ umfragen|length }}</span>
     </button>
     <button class="admin-tab-btn" data-tab="erstellen" onclick="zeigeTab('erstellen')">
-        &#10133; Umfrage erstellen
+        Umfrage erstellen
     </button>
 </div>
 
-<!-- Flash-Meldungen -->
-{% with messages = get_flashed_messages() %}
-{% if messages %}
-<div class="flash-messages">
-    {% for msg in messages %}
-    <div class="alert alert-info">{{ msg }}</div>
-    {% endfor %}
-</div>
-{% endif %}
-{% endwith %}
+
 
 <!-- ============================================================
      TAB 1: ERGEBNISSE ANZEIGEN
      ============================================================ -->
 <div id="tab-ergebnisse" class="admin-tab-inhalt aktiv">
+    <!-- ============================================================
+         STATISTIK-BEREICH: HTML/CSS-Balkengrafik (kein JavaScript!)
+         Zeigt Antworthäufigkeiten für Auswahl- und Bewertungsfragen (Priorität 1)
+         Vgl. requirements.md Kap. 12.1 Funktion 1.4
+         ============================================================ -->
+    {% if statistiken %}
+    {% set ns = namespace(hat_daten=false) %}
+    {% for sid, fragen_stats in statistiken.items() %}
+        {% if fragen_stats %}
+            {% set ns.hat_daten = true %}
+        {% endif %}
+    {% endfor %}
+    {% if ns.hat_daten %}
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2>Auswertung: Auswahl- und Bewertungsfragen</h2>
+                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">Antworthäufigkeiten als Balkengrafik - serverseitig berechnet</p>
+            </div>
+            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+                CSV exportieren
+            </a>
+        </div>
+        <div class="card-body">
+            {% for sid, fragen_stats in statistiken.items() %}
+            {% if fragen_stats %}
+            <div class="statistik-umfrage-block">
+                <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
+                {% for frage_label, zaehler in fragen_stats.items() %}
+                {% set gesamt = zaehler['_gesamt'] %}
+                <div class="statistik-frage-block">
+                    <p class="statistik-frage-label">{{ frage_label }}</p>
+                    {% if gesamt == 0 %}
+                    <p style="color: var(--color-text-light); font-style: italic;">Noch keine Antworten für diese Frage.</p>
+                    {% else %}
+                    <div class="statistik-balken-container">
+                        {% for option, anzahl in zaehler.items() %}
+                        {% if option != '_gesamt' %}
+                        {% set prozent = ((anzahl / gesamt) * 100) | round(1) %}
+                        <div class="statistik-balken-zeile">
+                            <span class="statistik-option-label">{{ option }}</span>
+                            <div class="statistik-balken-track">
+                                <div class="statistik-balken-fill" style="width: {{ prozent }}%;"></div>
+                            </div>
+                            <span class="statistik-anzahl">{{ anzahl }}x ({{ prozent }}%)</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ gesamt }} Antwort(en) gesamt</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- ============================================================
+         ROHDATEN-BEREICH: Tabelle der eingegangenen Ergebnisse (Priorität 2)
+         ============================================================ -->
     <div class="card">
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
-                <h2>&#128202; Eingegangene Ergebnisse</h2>
+                <h2>Eingegangene Ergebnisse</h2>
                 <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
                     {{ ergebnisse|length }} Antwort(en) gesamt
                 </p>
             </div>
-            <!-- CSV-Export-Button (vgl. requirements.md Kap. 12.1, Funktion 1.5) -->
             <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
                style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
-                &#128229; CSV exportieren
+                CSV exportieren
             </a>
         </div>
         <div class="card-body">
@@ -125,67 +173,11 @@
             </div>
             {% else %}
             <div class="alert alert-info">
-                &#128203; Noch keine Ergebnisse vorhanden. Starten Sie eine Umfrage über die Startseite.
+                Noch keine Ergebnisse vorhanden. Starten Sie eine Umfrage über die Startseite.
             </div>
             {% endif %}
         </div>
     </div>
-
-    <!-- ============================================================
-         STATISTIK-BEREICH: HTML/CSS-Balkengrafik (kein JavaScript!)
-         Zeigt Antworthäufigkeiten für Auswahl- und Bewertungsfragen
-         Vgl. requirements.md Kap. 12.1 Funktion 1.4
-         ============================================================ -->
-    {% if statistiken %}
-    {% set ns = namespace(hat_daten=false) %}
-    {% for sid, fragen_stats in statistiken.items() %}
-        {% if fragen_stats %}
-            {% set ns.hat_daten = true %}
-        {% endif %}
-    {% endfor %}
-    {% if ns.hat_daten %}
-    <div class="card" style="margin-top: 24px;">
-        <div class="card-header">
-            <h2>&#128200; Auswertung: Auswahl- &amp; Bewertungsfragen</h2>
-            <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">Antworthäufigkeiten als Balkengrafik &ndash; serverseitig berechnet</p>
-        </div>
-        <div class="card-body">
-            {% for sid, fragen_stats in statistiken.items() %}
-            {% if fragen_stats %}
-            <div class="statistik-umfrage-block">
-                <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
-                {% for frage_label, zaehler in fragen_stats.items() %}
-                {% set gesamt = zaehler['_gesamt'] %}
-                <div class="statistik-frage-block">
-                    <p class="statistik-frage-label">{{ frage_label }}</p>
-                    {% if gesamt == 0 %}
-                    <p style="color: var(--color-text-light); font-style: italic;">Noch keine Antworten für diese Frage.</p>
-                    {% else %}
-                    <div class="statistik-balken-container">
-                        {% for option, anzahl in zaehler.items() %}
-                        {% if option != '_gesamt' %}
-                        {% set prozent = ((anzahl / gesamt) * 100) | round(1) %}
-                        <div class="statistik-balken-zeile">
-                            <span class="statistik-option-label">{{ option }}</span>
-                            <div class="statistik-balken-track">
-                                <div class="statistik-balken-fill" style="width: {{ prozent }}%;"></div>
-                            </div>
-                            <span class="statistik-anzahl">{{ anzahl }}x ({{ prozent }}%)</span>
-                        </div>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                    <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ gesamt }} Antwort(en) gesamt</p>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-    {% endif %}
 
 </div>
 
@@ -224,11 +216,11 @@
         <!-- Rechte Spalte: Editor (leer bis Auswahl) -->
         <div class="card umfrage-editor-card" id="bearbeiten-editor-card">
             <div class="card-header">
-                <h2 id="bearbeiten-titel">Umfrage auswählen</h2>
+                <h2 id="bearbeiten-titel">Umfrage waehlen</h2>
             </div>
             <div class="card-body" id="bearbeiten-inhalt">
                 <div class="leer-hinweis">
-                    &#8592; Wählen Sie links eine Umfrage aus, um sie zu bearbeiten.
+                    Waehlen Sie links eine Umfrage aus, um sie zu bearbeiten.
                 </div>
             </div>
         </div>
@@ -241,7 +233,7 @@
 <div id="tab-erstellen" class="admin-tab-inhalt">
     <div class="card">
         <div class="card-header">
-            <h2>&#10133; Neue Umfrage erstellen</h2>
+            <h2>Neue Umfrage erstellen</h2>
         </div>
         <div class="card-body">
             <!-- Status-Meldung -->
@@ -276,7 +268,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0;">Fragen <span id="fragen-anzahl-badge" class="badge">0</span></h3>
                 <button class="btn-primary" onclick="frageHinzufuegen()">
-                    &#10133; Frage hinzufügen
+                    Frage hinzufügen
                 </button>
             </div>
 
@@ -289,10 +281,10 @@
 
             <div style="margin-top: 24px; display: flex; gap: 12px;">
                 <button class="btn-primary" onclick="umfrageSpeichern()" style="font-size: 1rem; padding: 12px 28px;">
-                    &#128190; Umfrage speichern
+                    Umfrage speichern
                 </button>
                 <button class="btn-secondary" onclick="formularZuruecksetzen()">
-                    &#8635; Zurücksetzen
+                    Zurücksetzen
                 </button>
             </div>
         </div>
@@ -382,7 +374,7 @@
         document.getElementById('list-item-' + index).classList.add('aktiv');
 
         // Titel setzen
-        document.getElementById('bearbeiten-titel').textContent = '✏️ ' + umfrage.title;
+        document.getElementById('bearbeiten-titel').textContent = umfrage.title;
 
         // Fragen-Liste in den Erstellen-Editor laden und zu Tab 3 wechseln NICHT –
         // stattdessen Editor direkt in Tab 2 aufbauen
@@ -390,7 +382,7 @@
 
         // Fragen als bearbeitbare HTML-Liste rendern
         var html = '<div class="builder-status builder-status-erfolg" style="margin-bottom:16px;">'
-                 + '&#10003; Umfrage geladen: <strong>' + escapeHtml(umfrage.title) + '</strong>'
+                 + 'Umfrage geladen: <strong>' + escapeHtml(umfrage.title) + '</strong>'
                  + ' <span class="badge badge-secondary" style="margin-left:8px;">' + escapeHtml(umfrage._rolle) + '</span>'
                  + '</div>';
 
@@ -404,7 +396,9 @@
         html += '</div>';
         html += '<div style="margin-top:20px; display:flex; gap:10px;">'
              + '<button class="btn-primary" onclick="umfrageAktualisieren(\'' + escapeHtml(umfrage._rolle) + '\', \'' + escapeHtml(umfrage.survey_id) + '\', \'' + escapeHtml(umfrage.title) + '\')">'
-             + '&#128190; Änderungen speichern</button>'
+             + 'Änderungen speichern</button>'
+             + '<button class="btn-danger" style="background-color: var(--color-danger); border-color: var(--color-danger); color: white;" onclick="umfrageLoeschen(\'' + escapeHtml(umfrage.survey_id) + '\')">'
+             + 'Umfrage löschen</button>'
              + '</div>';
 
         inhalt.innerHTML = html;
@@ -432,10 +426,10 @@
             (frage.options || []).forEach(function(opt, oi) {
                 html += '<div class="option-zeile">';
                 html += '<input type="text" class="form-control option-input" value="' + escapeHtml(opt.text || '') + '" placeholder="Option ' + (oi+1) + '">';
-                html += '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">&#10005;</button>';
+                html += '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
                 html += '</div>';
             });
-            html += '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">&#10133; Option hinzufügen</button>';
+            html += '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">Option hinzufügen</button>';
             html += '</div>';
         }
         html += '</div>';
@@ -447,7 +441,7 @@
         var zeile = document.createElement('div');
         zeile.className = 'option-zeile';
         zeile.innerHTML = '<input type="text" class="form-control option-input" placeholder="Neue Option">'
-                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">&#10005;</button>';
+                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
         container.insertBefore(zeile, container.lastElementChild);
     }
 
@@ -522,12 +516,31 @@
         .catch(function(e) { zeigeBearbeitenStatus('Netzwerkfehler: ' + e, 'fehler'); });
     }
 
+    function umfrageLoeschen(surveyId) {
+        if (!confirm('Möchten Sie diese Umfrage wirklich unwiderruflich löschen?')) return;
+
+        zeigeBearbeitenStatus('Löschen...', 'info');
+
+        fetch('/admin/surveys/delete/' + surveyId, {
+            method: 'POST'
+        })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+        .then(function(res) {
+            if (res.ok) {
+                zeigeBearbeitenStatus('&#10003; Umfrage erfolgreich gelöscht!', 'erfolg');
+                setTimeout(function() { window.location.reload(); }, 1500);
+            } else {
+                zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+            }
+        })
+        .catch(function(e) { zeigeBearbeitenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+    }
+
     function zeigeBearbeitenStatus(msg, typ) {
-        var div = document.getElementById('bearbeiten-status');
-        div.innerHTML = msg;
-        div.className = 'builder-status builder-status-' + typ;
-        div.style.display = 'block';
-        if (typ !== 'fehler') setTimeout(function() { div.style.display = 'none'; }, 5000);
+        if (!msg) return;
+        var toastTyp = (typ === 'fehler' || typ === 'error') ? 'error' : 'info';
+        var text = msg.replace(/<[^>]*>/g, '');
+        window.showNotification(text, toastTyp);
     }
 
     // -------------------------------------------------------
@@ -580,10 +593,10 @@
             // Typ-Auswahl
             html += '<select class="form-control" style="width:auto;" id="neu-typ-' + frage.id + '" onchange="typGeaendert(' + frage.id + ', this.value)">';
             var typen = [
-                {v:'text', l:'&#128221; Freitext'},
-                {v:'single_choice', l:'&#9711; Einzelauswahl (Radio)'},
-                {v:'multiple_choice', l:'&#9744; Mehrfachauswahl (Checkbox)'},
-                {v:'rating', l:'&#11088; Bewertung (1–5 Sterne)'}
+                {v:'text', l:'Freitext'},
+                {v:'single_choice', l:'Einzelauswahl (Radio)'},
+                {v:'multiple_choice', l:'Mehrfachauswahl (Checkbox)'},
+                {v:'rating', l:'Bewertung (1-5 Skala)'}
             ];
             typen.forEach(function(t) {
                 html += '<option value="' + t.v + '"' + (frage.typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
@@ -596,9 +609,9 @@
 
             // Verschieben / Löschen
             html += '<div style="display:flex;gap:4px;">';
-            if (idx > 0) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', -1)" title="Nach oben">&#8593;</button>';
-            if (idx < fragenListe.length - 1) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', 1)" title="Nach unten">&#8595;</button>';
-            html += '<button class="btn-danger btn-sm" onclick="frageEntfernen(' + frage.id + ')">&#10005;</button>';
+            if (idx > 0) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', -1)" title="Nach oben">Auf</button>';
+            if (idx < fragenListe.length - 1) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', 1)" title="Nach unten">Ab</button>';
+            html += '<button class="btn-danger btn-sm" onclick="frageEntfernen(' + frage.id + ')">X</button>';
             html += '</div>';
             html += '</div>'; // frage-karte-kopf
 
@@ -609,14 +622,14 @@
             if (frage.typ === 'single_choice' || frage.typ === 'multiple_choice') {
                 html += '<div class="optionen-bereich" id="neu-optionen-' + frage.id + '">';
                 html += '<div class="option-zeile"><input type="text" class="form-control option-input" placeholder="Option 1">'
-                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">&#10005;</button></div>';
+                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button></div>';
                 html += '<div class="option-zeile"><input type="text" class="form-control option-input" placeholder="Option 2">'
-                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">&#10005;</button></div>';
-                html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">&#10133; Option hinzufügen</button>';
+                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button></div>';
+                html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">Option hinzufügen</button>';
                 html += '</div>';
             } else if (frage.typ === 'rating') {
                 html += '<div class="optionen-bereich" style="color:var(--color-text-light);font-size:0.9rem;">'
-                      + '&#11088;&#11088;&#11088;&#11088;&#11088; Bewertungsskala 1–5 (wird automatisch angezeigt)'
+                      + 'Bewertungsskala 1-5 (wird automatisch angezeigt)'
                       + '</div>';
             }
 
@@ -641,7 +654,7 @@
         var zeile = document.createElement('div');
         zeile.className = 'option-zeile';
         zeile.innerHTML = '<input type="text" class="form-control option-input" placeholder="Option ' + (anzahl + 1) + '">'
-                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">&#10005;</button>';
+                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
         container.insertBefore(zeile, container.lastElementChild);
         zeile.querySelector('input').focus();
     }
@@ -656,12 +669,10 @@
     }
 
     function zeigeErstellenStatus(msg, typ) {
-        var div = document.getElementById('erstellen-status');
-        if (!msg) { div.style.display = 'none'; return; }
-        div.innerHTML = msg;
-        div.className = 'builder-status builder-status-' + typ;
-        div.style.display = 'block';
-        if (typ === 'erfolg') setTimeout(function() { div.style.display = 'none'; }, 6000);
+        if (!msg) return;
+        var toastTyp = (typ === 'fehler' || typ === 'error') ? 'error' : 'info';
+        var text = msg.replace(/<[^>]*>/g, '');
+        window.showNotification(text, toastTyp);
     }
 
     function umfrageSpeichern() {
@@ -669,8 +680,8 @@
         var beschreibung = document.getElementById('neu-beschreibung').value.trim();
         var rolle = document.getElementById('neu-rolle').value;
 
-        if (!titel) { zeigeErstellenStatus('&#10060; Bitte einen Titel eingeben.', 'fehler'); return; }
-        if (fragenListe.length === 0) { zeigeErstellenStatus('&#10060; Bitte mindestens eine Frage hinzufügen.', 'fehler'); return; }
+        if (!titel) { zeigeErstellenStatus('Fehler: Bitte einen Titel eingeben.', 'fehler'); return; }
+        if (fragenListe.length === 0) { zeigeErstellenStatus('Fehler: Bitte mindestens eine Frage hinzufügen.', 'fehler'); return; }
 
         // Fragen aus dem DOM auslesen
         var fragen = [];
@@ -709,16 +720,16 @@
                     }
                 });
                 if (frageObj.options.length < 2) {
-                    zeigeErstellenStatus('&#10060; Frage ' + (idx+1) + ': Bitte mindestens 2 Optionen angeben.', 'fehler');
+                    zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Bitte mindestens 2 Optionen angeben.', 'fehler');
                     fehler = true; return;
                 }
             } else if (typ === 'rating') {
                 frageObj.options = [
-                    {value:'1', text:'1 – Sehr schlecht'},
-                    {value:'2', text:'2 – Schlecht'},
-                    {value:'3', text:'3 – Neutral'},
-                    {value:'4', text:'4 – Gut'},
-                    {value:'5', text:'5 – Sehr gut'}
+                    {value:'1', text:'1 - Sehr schlecht'},
+                    {value:'2', text:'2 - Schlecht'},
+                    {value:'3', text:'3 - Neutral'},
+                    {value:'4', text:'4 - Gut'},
+                    {value:'5', text:'5 - Sehr gut'}
                 ];
             }
             fragen.push(frageObj);
@@ -734,7 +745,7 @@
             questions: fragen
         };
 
-        zeigeErstellenStatus('&#8987; Speichern...', 'info');
+        zeigeErstellenStatus('Speichern...', 'info');
 
         fetch('/admin/surveys/save', {
             method: 'POST',
@@ -745,7 +756,7 @@
         .then(function(res) {
             if (res.ok) {
                 zeigeErstellenStatus(
-                    '&#10003; Umfrage "' + escapeHtml(titel) + '" für '
+                    'Umfrage "' + escapeHtml(titel) + '" für '
                     + (rolle === 'student' ? 'Studierende' : 'Professorinnen & Professoren')
                     + ' erfolgreich gespeichert! (Datei: ' + escapeHtml(res.daten.saved_as || '') + ')',
                     'erfolg'
@@ -754,10 +765,10 @@
                 // Seite nach 2 Sekunden neu laden, damit die Umfrage in Tab 2 erscheint
                 setTimeout(function() { window.location.reload(); }, 2500);
             } else {
-                zeigeErstellenStatus('&#10060; Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+                zeigeErstellenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
             }
         })
-        .catch(function(e) { zeigeErstellenStatus('&#10060; Netzwerkfehler: ' + e, 'fehler'); });
+        .catch(function(e) { zeigeErstellenStatus('Netzwerkfehler: ' + e, 'fehler'); });
     }
 
     // -------------------------------------------------------

@@ -23,9 +23,11 @@
 
         <!-- Serverseitige Fehlermeldung (Pflichtfeld nicht ausgefüllt, vgl. requirements.md Kap. 11) -->
         {% if fehler %}
-        <div class="alert alert-danger" role="alert" style="margin-bottom: 16px;">
-            <strong>&#9888; Pflichtfeld:</strong> {{ fehler }}
-        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                window.showNotification({{ fehler | tojson }}, 'error');
+            });
+        </script>
         {% endif %}
 
         <!-- ============================================================
@@ -45,14 +47,14 @@
 
             <div class="step-nav">
                 {% if step > 0 %}
-                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
                 {% if step < total - 1 %}
-                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                <button type="submit" class="btn-primary">Weiter</button>
                 {% else %}
-                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
                 {% endif %}
             </div>
         </form>
@@ -83,14 +85,14 @@
 
             <div class="step-nav">
                 {% if step > 0 %}
-                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
                 {% if step < total - 1 %}
-                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                <button type="submit" class="btn-primary">Weiter</button>
                 {% else %}
-                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
                 {% endif %}
             </div>
         </form>
@@ -116,7 +118,7 @@
                 <label class="option-label {% if opt.value in saved_list %}option-selected{% endif %}" style="cursor:pointer;">
                     <input type="checkbox" name="answer" value="{{ opt.value }}"
                            {% if opt.value in saved_list %}checked{% endif %}>
-                    <span class="custom-checkbox">&#10003;</span>
+                    <span class="custom-checkbox">[X]</span>
                     {{ opt.text }}
                 </label>
                 {% endfor %}
@@ -124,14 +126,14 @@
 
             <div class="step-nav">
                 {% if step > 0 %}
-                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
                 {% if step < total - 1 %}
-                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                <button type="submit" class="btn-primary">Weiter</button>
                 {% else %}
-                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
                 {% endif %}
             </div>
         </form>
@@ -155,8 +157,7 @@
                     <input type="radio" name="answer" value="{{ stern }}"
                            {% if question.required %}required{% endif %}
                            {% if saved_answer == stern|string %}checked{% endif %}>
-                    <span class="rating-stern">&#9733;</span>
-                    <span class="rating-zahl">{{ stern }}</span>
+                    <span class="rating-zahl">Bewertung {{ stern }}</span>
                 </label>
                 {% endfor %}
             </div>
@@ -167,14 +168,14 @@
 
             <div class="step-nav">
                 {% if step > 0 %}
-                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">&larr; Zurück</button>
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
                 {% else %}
                 <span></span>
                 {% endif %}
                 {% if step < total - 1 %}
-                <button type="submit" class="btn-primary">Weiter &rarr;</button>
+                <button type="submit" class="btn-primary">Weiter</button>
                 {% else %}
-                <button type="submit" class="btn-primary btn-submit-final">Absenden ✓</button>
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
                 {% endif %}
             </div>
         </form>
@@ -185,10 +186,7 @@
 
     {% elif not survey %}
     <div class="error-container">
-        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-exclamation-triangle" viewBox="0 0 16 16">
-          <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/>
-          <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995z"/>
-        </svg>
+
         <h2>Verbindung zum Server fehlgeschlagen</h2>
         <p>Es können aktuell keine Fragen angezeigt werden. Bitte versuchen Sie es später erneut.</p>
         <a href="{{ url_for('index') }}" class="btn-secondary">Zurück zur Startseite</a>
@@ -196,4 +194,23 @@
     {% endif %}
 
 </section>
+
+<script>
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        var submitBtn = form.querySelector('.btn-submit-final');
+        if (submitBtn) {
+            // Deaktivieren nach einer minimalen Verzögerung, damit der Submit-Trigger ausgeführt wird
+            setTimeout(function() {
+                form.querySelectorAll('button').forEach(function(btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                });
+            }, 50);
+            submitBtn.innerHTML = 'Wird übermittelt...';
+        }
+    });
+});
+</script>
 {% endblock %}
