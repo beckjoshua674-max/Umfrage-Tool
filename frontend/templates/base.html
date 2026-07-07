@@ -30,16 +30,102 @@
     </header>
 
     <main class="container">
-        <!-- Globale Fehleranzeigen via Flask Flash Messages -->
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-            <ul class="flashes">
-                {% for message in messages %}
-                <li>{{ message }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        {% endwith %}
+        <!-- Globaler Benachrichtigungs-Container -->
+        <div id="global-notifications" style="position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; pointer-events: none; gap: 10px; margin-top: 10px;"></div>
+
+        <script>
+        window.showNotification = function(text, type) {
+            var container = document.getElementById('global-notifications');
+            if (!container) return;
+
+            // 1. Striktes Einmaligkeits-Prinzip
+            var existingAlerts = container.querySelectorAll('.alert-toast');
+            for (var i = 0; i < existingAlerts.length; i++) {
+                if (existingAlerts[i].dataset.text === text) {
+                    return;
+                }
+            }
+
+            // 2. Toast-Element erstellen
+            var toast = document.createElement('div');
+            toast.className = 'alert-toast alert-toast-' + type;
+            toast.dataset.text = text;
+            toast.style.pointerEvents = 'auto';
+            toast.style.padding = '12px 24px';
+            toast.style.borderRadius = '4px';
+            toast.style.color = '#ffffff';
+            toast.style.fontWeight = '500';
+            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
+            toast.style.gap = '15px';
+            toast.style.transition = 'all 0.3s ease';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            toast.style.minWidth = '300px';
+            toast.style.justifyContent = 'space-between';
+
+            // Farbcodierung
+            if (type === 'error') {
+                toast.style.backgroundColor = '#d32f2f';
+                toast.style.borderLeft = '6px solid #b71c1c';
+            } else {
+                toast.style.backgroundColor = '#1976d2';
+                toast.style.borderLeft = '6px solid #0d47a1';
+            }
+
+            var msgSpan = document.createElement('span');
+            msgSpan.textContent = text;
+            toast.appendChild(msgSpan);
+
+            var closeBtn = document.createElement('button');
+            closeBtn.textContent = 'X';
+            closeBtn.style.background = 'none';
+            closeBtn.style.border = 'none';
+            closeBtn.style.color = '#ffffff';
+            closeBtn.style.fontWeight = 'bold';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.padding = '0 5px';
+            closeBtn.addEventListener('click', function() {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+                setTimeout(function() { toast.remove(); }, 300);
+            });
+            toast.appendChild(closeBtn);
+
+            container.appendChild(toast);
+
+            setTimeout(function() {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateY(0)';
+            }, 10);
+
+            // 3. Automatisches Ausblenden (Timeout 7 Sekunden fuer Info/Erfolg)
+            if (type !== 'error') {
+                setTimeout(function() {
+                    if (toast.parentElement) {
+                        toast.style.opacity = '0';
+                        toast.style.transform = 'translateY(-20px)';
+                        setTimeout(function() { toast.remove(); }, 300);
+                    }
+                }, 7000);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        {% if category in ['error', 'danger'] %}
+                        window.showNotification({{ message | tojson }}, 'error');
+                        {% else %}
+                        window.showNotification({{ message | tojson }}, 'info');
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        });
+        </script>
 
         {% block content %}{% endblock %}
     </main>

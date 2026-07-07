@@ -414,3 +414,493 @@ main {
     color: var(--color-text-dark);
     margin-bottom: 10px;
 }
+
+/* ================================================================
+   SurveyJS Builder – Admin-Bereich
+   ================================================================ */
+
+/* Steuerleiste über dem Editor */
+.builder-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 16px 24px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.builder-toolbar-left,
+.builder-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.builder-label {
+    font-weight: 500;
+    color: var(--color-text-dark);
+    white-space: nowrap;
+}
+
+.builder-select {
+    width: auto;
+    min-width: 180px;
+}
+
+/* Status-Meldung (Erfolg / Fehler) */
+.builder-status {
+    padding: 14px 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 16px;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.builder-status-erfolg {
+    background-color: #eafaf1;
+    color: var(--color-success);
+    border: 1px solid #a9dfbf;
+}
+
+.builder-status-fehler {
+    background-color: #fdf1f0;
+    color: var(--color-danger);
+    border: 1px solid #f9dad6;
+}
+
+.builder-status-info {
+    background-color: #eaf4fb;
+    color: #2980b9;
+    border: 1px solid #aed6f1;
+}
+
+/* ================================================================
+   Admin Dashboard – 3-Tab-Layout
+   ================================================================ */
+
+/* Tab-Navigation */
+.admin-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: var(--color-white);
+    padding: 8px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    flex-wrap: wrap;
+}
+
+.admin-tab-btn {
+    flex: 1;
+    min-width: 180px;
+    padding: 12px 20px;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.admin-tab-btn:hover {
+    background: var(--color-background-grey);
+    color: var(--color-text-dark);
+}
+
+.admin-tab-btn.aktiv {
+    background: var(--color-hs-kehl);
+    color: var(--color-white);
+    border-color: var(--color-hs-kehl);
+}
+
+.tab-badge {
+    background: rgba(255,255,255,0.3);
+    color: inherit;
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.admin-tab-btn:not(.aktiv) .tab-badge {
+    background: var(--color-background-grey);
+    color: var(--color-text-dark);
+}
+
+/* Tab-Inhalte */
+.admin-tab-inhalt {
+    display: none;
+}
+
+.admin-tab-inhalt.aktiv {
+    display: block;
+}
+
+/* Filter-Leiste (Tab 1: Ergebnisse) */
+.filter-leiste {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: var(--color-background-grey);
+    border-radius: var(--border-radius);
+}
+
+.filter-btn {
+    padding: 6px 14px;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    background: var(--color-white);
+    color: var(--color-text-dark);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.filter-btn:hover {
+    border-color: var(--color-hs-kehl);
+    color: var(--color-hs-kehl);
+}
+
+.filter-btn.aktiv {
+    background: var(--color-hs-kehl);
+    border-color: var(--color-hs-kehl);
+    color: var(--color-white);
+}
+
+/* Antwort-Vorschau */
+.antwort-item.versteckt { display: none; }
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--color-hs-kehl);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 4px 0;
+    text-decoration: underline;
+}
+
+/* Tab 2: Bearbeiten – Split-Layout */
+.bearbeiten-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 768px) {
+    .bearbeiten-layout { grid-template-columns: 1fr; }
+}
+
+.umfragen-liste {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.umfrage-list-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background var(--transition-speed);
+}
+
+.umfrage-list-item:hover { background: var(--color-background-grey); }
+.umfrage-list-item.aktiv { background: rgba(33, 96, 166, 0.08); border-left: 3px solid var(--color-hs-kehl); }
+
+.umfrage-list-title {
+    font-weight: 500;
+    color: var(--color-text-dark);
+    margin-bottom: 4px;
+}
+
+.umfrage-list-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.leer-hinweis {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--color-text-light);
+    font-size: 1rem;
+}
+
+/* Frage-Karten (Tab 2 & 3) */
+.frage-karte {
+    background: var(--color-background-grey);
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: border-color var(--transition-speed);
+}
+
+.frage-karte:hover { border-color: var(--color-hs-kehl); }
+
+.frage-karte-kopf {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.frage-nr {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--color-hs-kehl);
+    white-space: nowrap;
+    min-width: 60px;
+}
+
+/* Optionen-Bereich */
+.optionen-bereich {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--color-white);
+    border-radius: 6px;
+    border: 1px dashed #dee2e6;
+}
+
+.option-zeile {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.option-zeile .form-control { flex: 1; }
+
+/* Erstellen-Tab: Metadaten-Bereich */
+.erstellen-meta {
+    background: var(--color-background-grey);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.form-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.form-row .form-group { flex: 1; min-width: 200px; }
+
+/* Icon-Button (Verschieben) */
+.btn-icon {
+    width: 30px;
+    height: 30px;
+    background: var(--color-white);
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-speed);
+    padding: 0;
+}
+
+.btn-icon:hover {
+    background: var(--color-hs-kehl);
+    color: var(--color-white);
+    border-color: var(--color-hs-kehl);
+}
+
+/* ==========================================================================
+   Fragetyp: Bewertung (rating) – Sterne-Anzeige (kein JavaScript)
+   Vgl. requirements.md Kap. 12.3, Fragetyp 'rating' und Kap. 13 Zustandsdefinition
+   ========================================================================== */
+.rating-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0 8px;
+}
+
+.rating-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 10px 14px;
+    border: 2px solid var(--color-hs-kehl);
+    border-radius: var(--border-radius);
+    transition: all var(--transition-speed);
+    min-width: 52px;
+    text-align: center;
+}
+
+/* Radio-Button ausblenden – nur der Stern zählt optisch */
+.rating-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.rating-stern {
+    font-size: 1.6rem;
+    color: var(--color-hs-kehl);
+    line-height: 1;
+}
+
+.rating-zahl {
+    font-size: 0.75rem;
+    color: var(--color-text-light);
+    margin-top: 4px;
+}
+
+.rating-label:hover,
+.rating-label.rating-aktiv {
+    background: var(--color-hs-kehl);
+    color: var(--color-white);
+}
+
+.rating-label:hover .rating-stern,
+.rating-label.rating-aktiv .rating-stern {
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255,215,0,0.7);
+}
+
+.rating-label:hover .rating-zahl,
+.rating-label.rating-aktiv .rating-zahl {
+    color: rgba(255,255,255,0.8);
+}
+
+.rating-beschriftung {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   Fragetyp: Mehrfachauswahl (multiple_choice) – Checkbox-Styling
+   ========================================================================== */
+.custom-checkbox {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--color-hs-kehl);
+    border-radius: 4px;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: transparent;
+    transition: all var(--transition-speed);
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+/* Wenn Checkbox oder Radio gecheckt → Hintergrund + Häkchen/X sichtbar */
+.option-label input[type="checkbox"]:checked ~ .custom-checkbox,
+.option-label input[type="radio"]:checked ~ .custom-checkbox {
+    background: var(--color-hs-kehl);
+    color: #fff;
+}
+
+.option-label input[type="checkbox"],
+.option-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* ==========================================================================
+   Admin Tab 1: Statistik-Balkengrafik (HTML/CSS – kein JavaScript)
+   Vgl. requirements.md Kap. 12.1 Funktion 1.4 und Kap. 13 Zustandsdefinition
+   ========================================================================== */
+.statistik-umfrage-block {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e8ecf0;
+}
+
+.statistik-umfrage-titel {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-hs-kehl);
+    margin: 0 0 12px;
+}
+
+.statistik-frage-block {
+    margin-bottom: 20px;
+}
+
+.statistik-frage-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-dark);
+    margin: 0 0 10px;
+}
+
+.statistik-balken-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.statistik-balken-zeile {
+    display: grid;
+    grid-template-columns: 180px 1fr 90px;
+    align-items: center;
+    gap: 12px;
+}
+
+.statistik-option-label {
+    font-size: 0.85rem;
+    color: var(--color-text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.statistik-balken-track {
+    height: 20px;
+    background: #e8ecf0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.statistik-balken-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-hs-kehl), #3a82d4);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    min-width: 2px;
+}
+
+.statistik-anzahl {
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    text-align: right;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .statistik-balken-zeile {
+        grid-template-columns: 1fr;
+    }
+    .rating-group {
+        gap: 8px;
+    }
+}

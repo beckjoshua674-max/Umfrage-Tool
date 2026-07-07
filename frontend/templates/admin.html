@@ -1,43 +1,179 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Ask Alma - Admin Dashboard{% endblock %}
 {% block header_title %}Admin Dashboard{% endblock %}
-{% block header_subtitle %}Fragen und Ergebnisse verwalten{% endblock %}
-{% block header_actions %}
-<div style="margin-top: 15px;">
-    <a href="{{ url_for('index') }}" class="btn-outline-light">&larr; Zur Startseite</a>
-</div>
-{% endblock %}
+{% block header_subtitle %}Umfragen und Ergebnisse verwalten{% endblock %}
 
 {% block content %}
-<div class="admin-grid">
-    <!-- Fragenverwaltung -->
-    <section class="dashboard-section card">
-        <div class="card-header">
-            <h2>Fragen verwalten</h2>
+
+<!-- ===========================================================
+     Admin-Dashboard: 3-Tab-OberflÃ¤che
+     JavaScript ist im Admin-Bereich erlaubt (vgl. agents.md)
+     =========================================================== -->
+
+<!-- Tab-Navigation -->
+<div class="admin-tabs">
+    <button class="admin-tab-btn aktiv" data-tab="ergebnisse" onclick="zeigeTab('ergebnisse')">
+        Ergebnisse anzeigen
+        <span class="tab-badge">{{ ergebnisse|length }}</span>
+    </button>
+    <button class="admin-tab-btn" data-tab="bearbeiten" onclick="zeigeTab('bearbeiten')">
+        Umfragen bearbeiten
+        <span class="tab-badge">{{ umfragen|length }}</span>
+    </button>
+    <button class="admin-tab-btn" data-tab="erstellen" onclick="zeigeTab('erstellen')">
+        Umfrage erstellen
+    </button>
+</div>
+
+
+
+<!-- ============================================================
+     TAB 1: ERGEBNISSE ANZEIGEN
+     ============================================================ -->
+<div id="tab-ergebnisse" class="admin-tab-inhalt aktiv">
+    <!-- ============================================================
+         STATISTIK-BEREICH: HTML/CSS-Balkengrafik (kein JavaScript!)
+         Zeigt AntworthÃ¤ufigkeiten fÃ¼r Auswahl- und Bewertungsfragen (PrioritÃ¤t 1)
+         Vgl. requirements.md Kap. 12.1 Funktion 1.4
+         ============================================================ -->
+    {% if statistiken %}
+    {% set ns = namespace(hat_daten=false) %}
+    {% for sid, fragen_stats in statistiken.items() %}
+        {% if fragen_stats %}
+            {% set ns.hat_daten = true %}
+        {% endif %}
+    {% endfor %}
+    {% if ns.hat_daten %}
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                <h2>Auswertung</h2>
+                {% if umfragen %}
+                <select id="stats-filter-select" class="form-control" style="width: auto; max-width: 300px; display: inline-block; padding: 6px 12px; font-size: 0.9rem;" onchange="filterStatistiken(this.value)">
+                    <option value="alle">Alle Umfragen anzeigen</option>
+                    {% for u in umfragen %}
+                    <option value="{{ u.survey_id }}">{{ u.title }} ({{ u._rolle }})</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+               onclick="handleCsvExport(event, 'stats')">
+                CSV exportieren
+            </a>
         </div>
         <div class="card-body">
-            {% if survey %}
+            {% for sid, fragen_stats in statistiken.items() %}
+            {% if fragen_stats %}
+            <div class="statistik-umfrage-block" data-survey-id="{{ sid }}">
+                <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
+                {% for frage_label, zaehler in fragen_stats.items() %}
+                {% set gesamt = zaehler['_gesamt'] %}
+                <div class="statistik-frage-block">
+                    <p class="statistik-frage-label">{{ frage_label }}</p>
+                    {% if gesamt == 0 %}
+                    <p style="color: var(--color-text-light); font-style: italic;">Noch keine Antworten fÃ¼r diese Frage.</p>
+                    {% else %}
+                    <div class="statistik-balken-container">
+                        {% for option, anzahl in zaehler.items() %}
+                        {% if option != '_gesamt' %}
+                        {% set prozent = ((anzahl / gesamt) * 100) | round(1) %}
+                        <div class="statistik-balken-zeile">
+                            <span class="statistik-option-label">{{ option }}</span>
+                            <div class="statistik-balken-track">
+                                <div class="statistik-balken-fill" style="width: {{ prozent }}%;"></div>
+                            </div>
+                            <span class="statistik-anzahl">{{ anzahl }}x ({{ prozent }}%)</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ gesamt }} Antwort(en) gesamt</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- ============================================================
+         ROHDATEN-BEREICH: Tabelle der eingegangenen Ergebnisse (PrioritÃ¤t 2)
+         ============================================================ -->
+    <div class="card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2>Eingegangene Ergebnisse</h2>
+                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
+                    {{ ergebnisse|length }} Antwort(en) gesamt
+                </p>
+            </div>
+            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+               onclick="handleCsvExport(event, 'results')">
+                CSV exportieren
+            </a>
+        </div>
+        <div class="card-body">
+            <!-- Umfrage-Filter -->
+            {% if umfragen %}
+            <div class="filter-leiste">
+                <label class="builder-label">Filtern nach Umfrage:</label>
+                <button class="filter-btn aktiv" onclick="filterErgebnisse('alle', this)">Alle</button>
+                {% for u in umfragen %}
+                <button class="filter-btn" onclick="filterErgebnisse('{{ u.survey_id }}', this)">
+                    {{ u.title }} <span style="font-size:0.75rem;opacity:0.7;">({{ u._rolle }})</span>
+                </button>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if ergebnisse|length > 0 %}
             <div class="table-responsive">
-                <table class="table">
+                <table class="table" id="ergebnis-tabelle">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Typ</th>
-                            <th>Label</th>
-                            <th>Aktion</th>
+                            <th>Zeitpunkt</th>
+                            <th>Umfrage</th>
+                            <th>Antworten</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for q in survey.questions %}
-                        <tr>
-                            <td><span class="badge">{{ q.id }}</span></td>
-                            <td><span class="badge badge-secondary">{{ q.type }}</span></td>
-                            <td class="td-label">{{ q.label }}</td>
+                        {% for r in ergebnisse %}
+                        <tr class="ergebnis-zeile" data-survey-id="{{ r.get('survey_id', '') }}">
+                            <td><span class="badge">{{ r.get('result_id', '?')[:8] }}â€¦</span></td>
+                            <td class="td-small">
+                                {% if r.get('received_at') %}
+                                    {{ r.received_at[:16] | replace('T', ' ') }}
+                                {% elif r.get('timestamp') %}
+                                    {{ r.timestamp[:16] | replace('T', ' ') }}
+                                {% else %}â€“{% endif %}
+                            </td>
+                            <td><span class="badge badge-secondary">{{ r.get('survey_id', '?') }}</span></td>
                             <td>
-                                <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST" class="delete-form">
-                                    <button type="submit" class="btn-danger btn-sm">Löschen</button>
-                                </form>
+                                <!-- Kompakte Vorschau: nur 2 Antworten sichtbar -->
+                                <div class="antwort-vorschau" id="vorschau-{{ loop.index }}">
+                                    <ul class="answers-list">
+                                        {% for key, val in r.get('answers', {}).items() %}
+                                        <li class="antwort-item {% if loop.index > 2 %}versteckt{% endif %}">
+                                            <span class="q-key">{{ key }}:</span>
+                                            <span class="q-val">{{ val }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if r.get('answers', {})|length > 2 %}
+                                    <button class="btn-link" onclick="toggleAntworten({{ loop.index }}, this)">
+                                        + {{ r.get('answers', {})|length - 2 }} weitere anzeigen
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -45,74 +181,879 @@
                 </table>
             </div>
             {% else %}
-            <div class="alert alert-danger">Konnte Umfragedaten nicht vom Server laden. Läuft das Backend?</div>
-            {% endif %}
-
-            <div class="add-question-area">
-                <h3>Neue Frage hinzufügen</h3>
-                <form action="{{ url_for('add_question') }}" method="POST" class="add-question-form">
-                    <div class="form-group">
-                        <label>Fragen-ID (z.B. q11):</label>
-                        <input type="text" name="id" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Typ:</label>
-                        <select name="type" class="form-control" required>
-                            <option value="text">Freitext (text)</option>
-                            <option value="multiple_choice">Multiple Choice</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Fragestellung (Label):</label>
-                        <input type="text" name="label" class="form-control" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Hinzufügen</button>
-                </form>
+            <div class="alert alert-info">
+                Noch keine Ergebnisse vorhanden. Starten Sie eine Umfrage Ã¼ber die Startseite.
             </div>
+            {% endif %}
         </div>
-    </section>
+    </div>
 
-    <!-- Ergebnisse -->
-    <section class="dashboard-section card">
-        <div class="card-header">
-            <h2>Eingegangene Ergebnisse</h2>
-        </div>
-        <div class="card-body">
-            {% if results != None %}
-                {% if results|length > 0 %}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Result ID</th>
-                                <th>Zeitstempel</th>
-                                <th>Antworten</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for r in results %}
-                            <tr>
-                                <td class="td-small text-muted">{{ r.result_id[:8] }}...</td>
-                                <td class="td-small">{{ r.received_at[:16] | replace('T', ' ') }}</td>
-                                <td>
-                                    <ul class="answers-list">
-                                        {% for key, val in r.answers.items() %}
-                                        <li><span class="q-key">{{ key }}:</span> <span class="q-val">{{ val }}</span></li>
-                                        {% endfor %}
-                                    </ul>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+</div>
+
+<!-- ============================================================
+     TAB 2: UMFRAGEN BEARBEITEN
+     ============================================================ -->
+<div id="tab-bearbeiten" class="admin-tab-inhalt">
+    <div class="bearbeiten-layout">
+        <!-- Linke Spalte: Umfragen-Auswahl -->
+        <div class="card umfragen-liste-card">
+            <div class="card-header">
+                <h2>Vorhandene Umfragen</h2>
+            </div>
+            <div class="card-body" style="padding: 16px;">
+                {% if umfragen %}
+                <div class="form-group">
+                    <label for="umfrage-auswahl-select" class="form-label" style="font-weight: 500;">Umfrage wÃ¤hlen:</label>
+                    <select id="umfrage-auswahl-select" class="form-control" onchange="umfrageAuswahlGeaendert(this)">
+                        <option value="">-- Bitte wÃ¤hlen --</option>
+                        {% for u in umfragen %}
+                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">{{ u.title }} ({{ u._rolle }})</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 {% else %}
-                <div class="alert alert-info">Noch keine Ergebnisse vorhanden.</div>
+                <div class="alert alert-info">Keine Umfragen gefunden.</div>
                 {% endif %}
-            {% else %}
-                <div class="alert alert-danger">Ergebnisse konnten nicht geladen werden. Backend unterstützt /api/results ggf. noch nicht.</div>
-            {% endif %}
+            </div>
         </div>
-    </section>
+
+        <!-- Rechte Spalte: Editor (leer bis Auswahl) -->
+        <div class="card umfrage-editor-card" id="bearbeiten-editor-card">
+            <div class="card-header">
+                <h2 id="bearbeiten-titel">Umfrage wÃ¤hlen</h2>
+            </div>
+            <div class="card-body" id="bearbeiten-inhalt">
+                <div class="leer-hinweis">
+                    WÃ¤hlen Sie eine Umfrage aus, um sie zu bearbeiten.
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- ============================================================
+     TAB 3: UMFRAGE ERSTELLEN
+     ============================================================ -->
+<div id="tab-erstellen" class="admin-tab-inhalt">
+    <div class="card">
+        <div class="card-header">
+            <h2>Neue Umfrage erstellen</h2>
+        </div>
+        <div class="card-body">
+            <!-- Status-Meldung -->
+            <div id="erstellen-status" class="builder-status" style="display:none;"></div>
+
+            <!-- Import-Bereich -->
+            <div class="import-bereich" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
+                <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.1rem; color: var(--color-text-dark);">Umfrage importieren</h3>
+                <p style="margin: 0 0 12px; color: var(--color-text-light); font-size: 0.85rem; line-height: 1.4;">
+                    Laden Sie eine lokal gespeicherte JSON-Datei hoch, um eine fertige Umfragestruktur direkt zu importieren und zu speichern.
+                </p>
+                <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <input type="file" id="import-datei-input" accept=".json" style="font-size: 0.9rem;">
+                    <button class="btn-primary" onclick="importiereUmfrage()" style="padding: 6px 16px; font-size: 0.85rem;">Importieren & Speichern</button>
+                </div>
+            </div>
+
+            <!-- Umfrage-Metadaten -->
+            <div class="erstellen-meta">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Titel der Umfrage *</label>
+                        <input type="text" id="neu-titel" class="form-control"
+                               placeholder="z.B. Ask Alma â€“ Wintersemester 2026" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Zielgruppe *</label>
+                        <select id="neu-rolle" class="form-control">
+                            <option value="student">Studierende</option>
+                            <option value="professor">Professorinnen & Professoren</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Beschreibung (optional)</label>
+                    <input type="text" id="neu-beschreibung" class="form-control"
+                           placeholder="Kurze Beschreibung der Umfrage">
+                </div>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;">
+
+            <!-- Fragen-Liste (dynamisch per JS) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0;">Fragen <span id="fragen-anzahl-badge" class="badge">0</span></h3>
+                <button class="btn-primary" onclick="frageHinzufuegen()">
+                    Frage hinzufÃ¼gen
+                </button>
+            </div>
+
+            <div id="fragen-container">
+                <!-- Fragen werden hier per JS eingefÃ¼gt -->
+                <div id="keine-fragen-hinweis" class="leer-hinweis">
+                    Noch keine Fragen. Klicken Sie auf â€žFrage hinzufÃ¼gen".
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+                <button class="btn-primary" onclick="umfrageSpeichern()" style="font-size: 1rem; padding: 12px 28px;">
+                    Umfrage speichern
+                </button>
+                <button class="btn-secondary" onclick="formularZuruecksetzen()">
+                    ZurÃ¼cksetzen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT â€“ Tab-Steuerung, Umfrage-Editor, Fragen-Builder
+     JavaScript ist im Admin-Bereich erlaubt (vgl. agents.md)
+     ============================================================ -->
+<script>
+    // -------------------------------------------------------
+    // Globale Variablen
+    // -------------------------------------------------------
+    var fragenListe = [];          // Aktuelle Fragen im Erstellen-Formular
+    var frageZaehler = 0;          // ZÃ¤hler fÃ¼r eindeutige Fragen-IDs
+
+    // -------------------------------------------------------
+    // Tab-Steuerung
+    // -------------------------------------------------------
+    function zeigeTab(tabId) {
+        // Alle Tabs ausblenden
+        document.querySelectorAll('.admin-tab-inhalt').forEach(function(tab) {
+            tab.classList.remove('aktiv');
+        });
+        document.querySelectorAll('.admin-tab-btn').forEach(function(btn) {
+            btn.classList.remove('aktiv');
+        });
+        // GewÃ¤hlten Tab einblenden
+        document.getElementById('tab-' + tabId).classList.add('aktiv');
+        document.querySelector('[data-tab="' + tabId + '"]').classList.add('aktiv');
+    }
+
+    // URL-Hash beim Laden prÃ¼fen (z.B. fÃ¼r Direktlinks)
+    window.addEventListener('load', function() {
+        var hash = window.location.hash.replace('#', '');
+        if (hash && document.getElementById(hash)) {
+            zeigeTab(hash.replace('tab-', ''));
+        }
+    });
+
+    // Sektion 1: Statistik-Filterung nach Umfrage
+    function filterStatistiken(surveyId) {
+        document.querySelectorAll('.statistik-umfrage-block').forEach(function(block) {
+            if (surveyId === 'alle' || block.dataset.surveyId === surveyId) {
+                block.style.display = '';
+            } else {
+                block.style.display = 'none';
+            }
+        });
+    }
+
+    var aktiverErgebnisFilter = 'alle';
+
+    function handleCsvExport(event, section) {
+        var filterVal = 'alle';
+        if (section === 'stats') {
+            var sel = document.getElementById('stats-filter-select');
+            if (sel) filterVal = sel.value;
+        } else {
+            filterVal = aktiverErgebnisFilter;
+        }
+
+        if (filterVal === 'alle') {
+            return;
+        }
+
+        event.preventDefault();
+
+        var modal = document.getElementById('csv-export-modal');
+        if (!modal) return;
+        modal.style.display = 'flex';
+
+        var btnFiltered = document.getElementById('modal-btn-filtered');
+        var btnAll = document.getElementById('modal-btn-all');
+        var btnCancel = document.getElementById('modal-btn-cancel');
+
+        var newBtnFiltered = btnFiltered.cloneNode(true);
+        var newBtnAll = btnAll.cloneNode(true);
+        var newBtnCancel = btnCancel.cloneNode(true);
+
+        btnFiltered.parentNode.replaceChild(newBtnFiltered, btnFiltered);
+        btnAll.parentNode.replaceChild(newBtnAll, btnAll);
+        btnCancel.parentNode.replaceChild(newBtnCancel, btnCancel);
+
+        newBtnFiltered.addEventListener('click', function() {
+            modal.style.display = 'none';
+            window.location.href = '/admin/results/export?survey_id=' + encodeURIComponent(filterVal);
+        });
+
+        newBtnAll.addEventListener('click', function() {
+            modal.style.display = 'none';
+            window.location.href = '/admin/results/export';
+        });
+
+        newBtnCancel.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+    }
+
+    // -------------------------------------------------------
+    // Tab 1: Ergebnis-Filterung nach Umfrage
+    // -------------------------------------------------------
+    function filterErgebnisse(surveyId, schaltflaeche) {
+        aktiverErgebnisFilter = surveyId;
+        // Alle Filter-Buttons deaktivieren
+        document.querySelectorAll('.filter-btn').forEach(function(b) {
+            b.classList.remove('aktiv');
+        });
+        schaltflaeche.classList.add('aktiv');
+
+        // Zeilen filtern
+        document.querySelectorAll('.ergebnis-zeile').forEach(function(zeile) {
+            if (surveyId === 'alle' || zeile.dataset.surveyId === surveyId) {
+                zeile.style.display = '';
+            } else {
+                zeile.style.display = 'none';
+            }
+        });
+    }
+
+    // Antworten in einer Zeile ein-/ausklappen
+    function toggleAntworten(index, schaltflaeche) {
+        var versteckte = document.querySelectorAll('#vorschau-' + index + ' .antwort-item.versteckt');
+        var alle = document.querySelectorAll('#vorschau-' + index + ' .antwort-item');
+        if (versteckte.length > 0) {
+            alle.forEach(function(item) { item.classList.remove('versteckt'); });
+            schaltflaeche.textContent = 'Weniger anzeigen';
+        } else {
+            var i = 0;
+            alle.forEach(function(item) {
+                if (i >= 2) item.classList.add('versteckt');
+                i++;
+            });
+            schaltflaeche.textContent = '+ ' + (alle.length - 2) + ' weitere anzeigen';
+        }
+    }
+
+    // -------------------------------------------------------
+    // Tab 2: Umfrage in Bearbeiten-Editor laden
+    // -------------------------------------------------------
+    function umfrageAuswahlGeaendert(selectElement) {
+        var surveyId = selectElement.value;
+        if (!surveyId) {
+            document.getElementById('bearbeiten-titel').textContent = 'Umfrage wÃ¤hlen';
+            document.getElementById('bearbeiten-inhalt').innerHTML = '<div class="leer-hinweis">WÃ¤hlen Sie eine Umfrage aus, um sie zu bearbeiten.</div>';
+            return;
+        }
+
+        var opt = selectElement.options[selectElement.selectedIndex];
+        var rolle = opt.getAttribute('data-rolle');
+
+        fetch('/api/survey?role=admin&survey_id=' + encodeURIComponent(surveyId))
+            .then(function(res) {
+                if (res.status === 401) {
+                    window.location.reload();
+                    return;
+                }
+                return res.json();
+            })
+            .then(function(umfrage) {
+                if (umfrage && umfrage.survey_id) {
+                    umfrage._rolle = rolle;
+                    ladeUmfrageInEditor(umfrage);
+                } else {
+                    window.showNotification('Fehler beim Laden der Umfragedefinition.', 'error');
+                }
+            })
+            .catch(function(err) {
+                window.showNotification('Netzwerkfehler beim Laden der Umfragedefinition: ' + err, 'error');
+            });
+    }
+
+    function ladeUmfrageInEditor(umfrage) {
+        // Titel setzen
+        document.getElementById('bearbeiten-titel').textContent = umfrage.title;
+
+        var inhalt = document.getElementById('bearbeiten-inhalt');
+
+        var html = '<div class="builder-status builder-status-erfolg" style="margin-bottom:16px;">'
+                 + 'Umfrage geladen: <strong>' + escapeHtml(umfrage.title) + '</strong>'
+                 + ' <span class="badge badge-secondary" style="margin-left:8px;">' + escapeHtml(umfrage._rolle) + '</span>'
+                 + '</div>';
+
+        html += '<div id="bearbeiten-status" class="builder-status" style="display:none;"></div>';
+        html += '<div id="bearbeiten-fragen">';
+
+        (umfrage.questions || []).forEach(function(frage, i) {
+            html += renderFrageBearbeiten(frage, i, umfrage._rolle, umfrage);
+        });
+
+        html += '</div>';
+        html += '<div style="margin-top:20px; display:flex; gap:10px;">'
+             + '<button class="btn-primary" onclick="umfrageAktualisieren(\'' + escapeHtml(umfrage._rolle) + '\', \'' + escapeHtml(umfrage.survey_id) + '\', \'' + escapeHtml(umfrage.title) + '\')">'
+             + 'Ã„nderungen speichern</button>'
+             + '<button class="btn-danger" style="background-color: var(--color-danger); border-color: var(--color-danger); color: white;" onclick="umfrageLoeschen(\'' + escapeHtml(umfrage.survey_id) + '\')">'
+             + 'Umfrage lÃ¶schen</button>'
+             + '</div>';
+
+        inhalt.innerHTML = html;
+    }
+
+    function renderFrageBearbeiten(frage, index, rolle, umfrage) {
+        var typ = frage.type;
+        var html = '<div class="frage-karte" id="bearbeiten-frage-' + index + '">';
+        html += '<div class="frage-karte-kopf">';
+        html += '<span class="frage-nr">Frage ' + (index + 1) + '</span>';
+        html += '<select class="form-control" style="width:auto;" onchange="frageTypGeaendertBearbeiten(' + index + ', this.value, \'' + escapeHtml(JSON.stringify(umfrage)) + '\')">';
+        var typen = [{v:'text',l:'Freitext'},{v:'single_choice',l:'Einzelauswahl'},{v:'multiple_choice',l:'Mehrfachauswahl'},{v:'rating',l:'Bewertung (1â€“5)'}];
+        typen.forEach(function(t) {
+            html += '<option value="' + t.v + '"' + (typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
+        });
+        html += '</select>';
+        html += '<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">'
+             + '<input type="checkbox" ' + (frage.required ? 'checked' : '') + ' id="bearbeiten-req-' + index + '"> Pflichtfeld</label>';
+        html += '</div>';
+        html += '<input type="text" class="form-control" id="bearbeiten-label-' + index + '" value="' + escapeHtml(frage.label || '') + '" placeholder="Fragetext">';
+
+        // Optionen fÃ¼r Auswahl-Fragen
+        if (typ === 'single_choice' || typ === 'multiple_choice') {
+            html += '<div class="optionen-bereich" id="bearbeiten-optionen-' + index + '">';
+            (frage.options || []).forEach(function(opt, oi) {
+                html += '<div class="option-zeile">';
+                html += '<input type="text" class="form-control option-input" value="' + escapeHtml(opt.text || '') + '" placeholder="Option ' + (oi+1) + '">';
+                html += '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
+                html += '</div>';
+            });
+            html += '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">Option hinzufÃ¼gen</button>';
+            html += '</div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function optionHinzufuegenBearbeiten(frageIndex) {
+        var container = document.getElementById('bearbeiten-optionen-' + frageIndex);
+        var zeile = document.createElement('div');
+        zeile.className = 'option-zeile';
+        zeile.innerHTML = '<input type="text" class="form-control option-input" placeholder="Neue Option">'
+                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
+        container.insertBefore(zeile, container.lastElementChild);
+    }
+
+    function frageTypGeaendertBearbeiten(index, neuerTyp, umfrageJson) {
+        var optBereich = document.getElementById('bearbeiten-optionen-' + index);
+        if (neuerTyp === 'single_choice' || neuerTyp === 'multiple_choice') {
+            if (!optBereich) {
+                var karte = document.getElementById('bearbeiten-frage-' + index);
+                var div = document.createElement('div');
+                div.className = 'optionen-bereich';
+                div.id = 'bearbeiten-optionen-' + index;
+                div.innerHTML = '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">Option hinzufÃ¼gen</button>';
+                karte.appendChild(div);
+                // StandardmÃ¤ÃŸig 2 leere Optionen hinzufÃ¼gen
+                optionHinzufuegenBearbeiten(index);
+                optionHinzufuegenBearbeiten(index);
+            } else {
+                optBereich.style.display = '';
+            }
+        } else if (optBereich) {
+            optBereich.style.display = 'none';
+        }
+    }
+
+    function umfrageAktualisieren(rolle, surveyId, titel) {
+        // Alle Fragen aus dem Bearbeiten-Editor einlesen
+        var fragenContainer = document.getElementById('bearbeiten-fragen');
+        var frageKarten = fragenContainer.querySelectorAll('.frage-karte');
+        var fragen = [];
+        frageKarten.forEach(function(karte, i) {
+            var id = karte.id.replace('bearbeiten-frage-', '');
+            var labelInput = document.getElementById('bearbeiten-label-' + id);
+            var reqInput = document.getElementById('bearbeiten-req-' + id);
+            var typSelect = karte.querySelector('select');
+            var frage = {
+                id: 'q' + (i + 1),
+                type: typSelect ? typSelect.value : 'text',
+                label: labelInput ? labelInput.value : '',
+                required: reqInput ? reqInput.checked : false
+            };
+            if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
+                var optContainer = document.getElementById('bearbeiten-optionen-' + id);
+                if (optContainer) {
+                    frage.options = [];
+                    optContainer.querySelectorAll('.option-input').forEach(function(inp, oi) {
+                        if (inp.value.trim()) {
+                            frage.options.push({
+                                value: 'opt' + (oi + 1) + '_' + inp.value.toLowerCase().replace(/\s+/g, '_').substring(0, 20),
+                                text: inp.value.trim()
+                            });
+                        }
+                    });
+                }
+            }
+            if (frage.label.trim()) fragen.push(frage);
+        });
+
+        if (fragen.length === 0) {
+            zeigeBearbeitenStatus('Bitte mindestens eine Frage mit Text ausfÃ¼llen.', 'fehler'); return;
+        }
+
+        var nutzlast = { survey_id: surveyId, title: titel, role: rolle, questions: fragen };
+        zeigeBearbeitenStatus('Speichern...', 'info');
+
+        fetch('/admin/surveys/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nutzlast)
+        })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+        .then(function(res) {
+            if (res.ok) {
+                zeigeBearbeitenStatus('Umfrage "' + escapeHtml(titel) + '" erfolgreich gespeichert!', 'erfolg');
+            } else {
+                zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+            }
+        })
+        .catch(function(e) { zeigeBearbeitenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+    }
+
+    function umfrageLoeschen(surveyId) {
+        if (!confirm('MÃ¶chten Sie diese Umfrage wirklich unwiderruflich lÃ¶schen?')) return;
+
+        zeigeBearbeitenStatus('LÃ¶schen...', 'info');
+
+        fetch('/admin/surveys/delete/' + surveyId, {
+            method: 'POST'
+        })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+        .then(function(res) {
+            if (res.ok) {
+                zeigeBearbeitenStatus('&#10003; Umfrage erfolgreich gelÃ¶scht!', 'erfolg');
+                setTimeout(function() { window.location.reload(); }, 1500);
+            } else {
+                zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+            }
+        })
+        .catch(function(e) { zeigeBearbeitenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+    }
+
+    function zeigeBearbeitenStatus(msg, typ) {
+        if (!msg) return;
+        var toastTyp = (typ === 'fehler' || typ === 'error') ? 'error' : 'info';
+        var text = msg.replace(/<[^>]*>/g, '');
+        window.showNotification(text, toastTyp);
+    }
+
+    // -------------------------------------------------------
+    // Tab 3: Neue Umfrage erstellen â€“ Fragen-Builder
+    // -------------------------------------------------------
+    function datenAusDomInListeSpeichern() {
+        fragenListe.forEach(function(frage) {
+            var labelFeld = document.getElementById('neu-label-' + frage.id);
+            if (labelFeld) {
+                frage.label = labelFeld.value;
+            }
+            var reqFeld = document.getElementById('neu-req-' + frage.id);
+            if (reqFeld) {
+                frage.required = reqFeld.checked;
+            }
+            var typFeld = document.getElementById('neu-typ-' + frage.id);
+            if (typFeld) {
+                frage.typ = typFeld.value;
+            }
+
+            var optContainer = document.getElementById('neu-optionen-' + frage.id);
+            if (optContainer) {
+                var optInputs = optContainer.querySelectorAll('.option-input');
+                var opts = [];
+                optInputs.forEach(function(inp) {
+                    opts.push(inp.value);
+                });
+                frage._cachedOptions = opts;
+            }
+        });
+    }
+
+    function frageHinzufuegen() {
+        datenAusDomInListeSpeichern();
+        frageZaehler++;
+        fragenListe.push({ id: frageZaehler, typ: 'text' });
+        renderFragenListe();
+        // Zur neuen Frage scrollen
+        setTimeout(function() {
+            var neueFrage = document.getElementById('neu-frage-' + frageZaehler);
+            if (neueFrage) neueFrage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    }
+
+    function frageEntfernen(fragenId) {
+        datenAusDomInListeSpeichern();
+        fragenListe = fragenListe.filter(function(f) { return f.id !== fragenId; });
+        renderFragenListe();
+    }
+
+    function frageVerschieben(fragenId, richtung) {
+        datenAusDomInListeSpeichern();
+        var idx = fragenListe.findIndex(function(f) { return f.id === fragenId; });
+        var neuerIdx = idx + richtung;
+        if (neuerIdx < 0 || neuerIdx >= fragenListe.length) return;
+        var temp = fragenListe[idx];
+        fragenListe[idx] = fragenListe[neuerIdx];
+        fragenListe[neuerIdx] = temp;
+        renderFragenListe();
+    }
+
+    function renderFragenListe() {
+        var container = document.getElementById('fragen-container');
+        var hinweis = document.getElementById('keine-fragen-hinweis');
+        document.getElementById('fragen-anzahl-badge').textContent = fragenListe.length;
+
+        if (fragenListe.length === 0) {
+            container.innerHTML = '<div id="keine-fragen-hinweis" class="leer-hinweis">Noch keine Fragen. Klicken Sie auf â€žFrage hinzufÃ¼gen".</div>';
+            return;
+        }
+
+        var html = '';
+        fragenListe.forEach(function(frage, idx) {
+            html += '<div class="frage-karte" id="neu-frage-' + frage.id + '">';
+
+            // Kopfzeile
+            html += '<div class="frage-karte-kopf">';
+            html += '<span class="frage-nr">Frage ' + (idx + 1) + '</span>';
+
+            // Typ-Auswahl
+            html += '<select class="form-control" style="width:auto;" id="neu-typ-' + frage.id + '" onchange="typGeaendert(' + frage.id + ', this.value)">';
+            var typen = [
+                {v:'text', l:'Freitext'},
+                {v:'single_choice', l:'Einzelauswahl (Radio)'},
+                {v:'multiple_choice', l:'Mehrfachauswahl (Checkbox)'},
+                {v:'rating', l:'Bewertung (1-5 Skala)'}
+            ];
+            typen.forEach(function(t) {
+                html += '<option value="' + t.v + '"' + (frage.typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
+            });
+            html += '</select>';
+
+            // Pflichtfeld-Toggle
+            var isReq = (frage.required !== undefined) ? frage.required : true;
+            html += '<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;white-space:nowrap;">'
+                 + '<input type="checkbox" id="neu-req-' + frage.id + '"' + (isReq ? ' checked' : '') + '> Pflichtfeld</label>';
+
+            // Verschieben / LÃ¶schen
+            html += '<div style="display:flex;gap:4px;">';
+            if (idx > 0) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', -1)" title="Nach oben">Auf</button>';
+            if (idx < fragenListe.length - 1) html += '<button class="btn-icon" onclick="frageVerschieben(' + frage.id + ', 1)" title="Nach unten">Ab</button>';
+            html += '<button class="btn-danger btn-sm" onclick="frageEntfernen(' + frage.id + ')">X</button>';
+            html += '</div>';
+            html += '</div>'; // frage-karte-kopf
+
+            // Fragen-Label
+            var labelVal = frage.label || '';
+            html += '<input type="text" class="form-control" id="neu-label-' + frage.id + '" value="' + escapeHtml(labelVal) + '" placeholder="Fragetext eingeben..." style="margin-top:10px;">';
+
+            // Optionen-Bereich (wird fÃ¼r single/multiple choice angezeigt, aber wir behalten die Eingaben im State!)
+            var hatOptionen = (frage.typ === 'single_choice' || frage.typ === 'multiple_choice');
+            html += '<div class="optionen-bereich" id="neu-optionen-' + frage.id + '" style="' + (hatOptionen ? '' : 'display:none;') + '">';
+
+            var optTexte = frage._cachedOptions || ['', ''];
+            if (optTexte.length === 0) {
+                optTexte = ['', ''];
+            }
+            optTexte.forEach(function(optText, oi) {
+                html += '<div class="option-zeile"><input type="text" class="form-control option-input" value="' + escapeHtml(optText) + '" placeholder="Option ' + (oi + 1) + '">'
+                      + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button></div>';
+            });
+            html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">Option hinzufÃ¼gen</button>';
+            html += '</div>';
+
+            if (frage.typ === 'rating') {
+                html += '<div class="optionen-bereich" style="color:var(--color-text-light);font-size:0.9rem;">'
+                      + 'Bewertungsskala 1-5 (wird automatisch angezeigt)'
+                      + '</div>';
+            }
+
+            html += '</div>'; // frage-karte
+        });
+        container.innerHTML = html;
+    }
+
+    function typGeaendert(fragenId, neuerTyp) {
+        datenAusDomInListeSpeichern();
+        var frage = fragenListe.find(function(f) { return f.id === fragenId; });
+        if (frage) frage.typ = neuerTyp;
+        renderFragenListe();
+        // Fokus auf das Label-Feld setzen
+        var labelFeld = document.getElementById('neu-label-' + fragenId);
+        if (labelFeld) labelFeld.focus();
+    }
+
+    function optionHinzufuegen(fragenId) {
+        var container = document.getElementById('neu-optionen-' + fragenId);
+        var anzahl = container.querySelectorAll('.option-input').length;
+        var zeile = document.createElement('div');
+        zeile.className = 'option-zeile';
+        zeile.innerHTML = '<input type="text" class="form-control option-input" placeholder="Option ' + (anzahl + 1) + '">'
+                        + '<button class="btn-danger btn-sm" onclick="this.parentElement.remove()">X</button>';
+        container.insertBefore(zeile, container.lastElementChild);
+        zeile.querySelector('input').focus();
+    }
+
+    function formularZuruecksetzen() {
+        fragenListe = [];
+        frageZaehler = 0;
+        document.getElementById('neu-titel').value = '';
+        document.getElementById('neu-beschreibung').value = '';
+        renderFragenListe();
+        zeigeErstellenStatus('', '');
+    }
+
+    function zeigeErstellenStatus(msg, typ) {
+        if (!msg) return;
+        var toastTyp = (typ === 'fehler' || typ === 'error') ? 'error' : 'info';
+        var text = msg.replace(/<[^>]*>/g, '');
+        window.showNotification(text, toastTyp);
+    }
+
+    function umfrageSpeichern() {
+        var titel = document.getElementById('neu-titel').value.trim();
+        var beschreibung = document.getElementById('neu-beschreibung').value.trim();
+        var rolle = document.getElementById('neu-rolle').value;
+
+        if (!titel) { zeigeErstellenStatus('Fehler: Bitte einen Titel eingeben.', 'fehler'); return; }
+        if (fragenListe.length === 0) { zeigeErstellenStatus('Fehler: Bitte mindestens eine Frage hinzufÃ¼gen.', 'fehler'); return; }
+
+        // Fragen aus dem DOM auslesen
+        var fragen = [];
+        var fehler = false;
+        fragenListe.forEach(function(frage, idx) {
+            var labelFeld = document.getElementById('neu-label-' + frage.id);
+            var typFeld = document.getElementById('neu-typ-' + frage.id);
+            var reqFeld = document.getElementById('neu-req-' + frage.id);
+            var label = labelFeld ? labelFeld.value.trim() : '';
+            var typ = typFeld ? typFeld.value : 'text';
+
+            if (!label) {
+                labelFeld.style.borderColor = 'var(--color-danger)';
+                fehler = true; return;
+            }
+            labelFeld.style.borderColor = '';
+
+            var frageObj = {
+                id: 'q' + (idx + 1),
+                type: typ,
+                label: (idx + 1) + '. ' + label,
+                required: reqFeld ? reqFeld.checked : true
+            };
+
+            // Optionen einlesen
+            if (typ === 'single_choice' || typ === 'multiple_choice') {
+                var optContainer = document.getElementById('neu-optionen-' + frage.id);
+                var optInputs = optContainer ? optContainer.querySelectorAll('.option-input') : [];
+                frageObj.options = [];
+                optInputs.forEach(function(inp, oi) {
+                    if (inp.value.trim()) {
+                        frageObj.options.push({
+                            value: 'opt' + (oi + 1) + '_' + inp.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
+                            text: inp.value.trim()
+                        });
+                    }
+                });
+                if (frageObj.options.length < 2) {
+                    zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Bitte mindestens 2 Optionen angeben.', 'fehler');
+                    fehler = true; return;
+                }
+            } else if (typ === 'rating') {
+                frageObj.options = [
+                    {value:'1', text:'1 - Sehr schlecht'},
+                    {value:'2', text:'2 - Schlecht'},
+                    {value:'3', text:'3 - Neutral'},
+                    {value:'4', text:'4 - Gut'},
+                    {value:'5', text:'5 - Sehr gut'}
+                ];
+            }
+            fragen.push(frageObj);
+        });
+
+        if (fehler) return;
+
+        var nutzlast = {
+            survey_id: 'ask_alma_' + rolle + '_' + Date.now(),
+            title: titel,
+            description: beschreibung,
+            role: rolle,
+            questions: fragen
+        };
+
+        zeigeErstellenStatus('Speichern...', 'info');
+
+        fetch('/admin/surveys/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nutzlast)
+        })
+        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+        .then(function(res) {
+            if (res.ok) {
+                zeigeErstellenStatus(
+                    'Umfrage "' + escapeHtml(titel) + '" fÃ¼r '
+                    + (rolle === 'student' ? 'Studierende' : 'Professorinnen & Professoren')
+                    + ' erfolgreich gespeichert! (Datei: ' + escapeHtml(res.daten.saved_as || '') + ')',
+                    'erfolg'
+                );
+                formularZuruecksetzen();
+                // Seite nach 2 Sekunden neu laden, damit die Umfrage in Tab 2 erscheint
+                setTimeout(function() { window.location.reload(); }, 2500);
+            } else {
+                zeigeErstellenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+            }
+        })
+        .catch(function(e) { zeigeErstellenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+    }
+
+    // -------------------------------------------------------
+    // Import-Validierung und -Ablauf
+    // -------------------------------------------------------
+    function importiereUmfrage() {
+        var input = document.getElementById('import-datei-input');
+        if (!input || !input.files || input.files.length === 0) {
+            window.showNotification('Bitte wÃ¤hlen Sie zuerst eine JSON-Datei fÃ¼r den Import aus.', 'error');
+            return;
+        }
+
+        var datei = input.files[0];
+        var reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                var jsonStr = e.target.result;
+                var daten = JSON.parse(jsonStr);
+
+                var fehler = validiereImportierteStruktur(daten);
+                if (fehler.length > 0) {
+                    var fehlerText = 'Die importierte Datei ist fehlerhaft: ' + fehler.join('; ');
+                    window.showNotification(fehlerText, 'error');
+                    return;
+                }
+
+                window.showNotification('Importierte Datei ist valide. Wird Ã¼bermittelt...', 'info');
+
+                fetch('/admin/surveys/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(daten)
+                })
+                .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+                .then(function(res) {
+                    if (res.ok) {
+                        window.showNotification('Umfrage "' + escapeHtml(daten.title) + '" erfolgreich importiert und gespeichert!', 'info');
+                        input.value = '';
+                        setTimeout(function() { window.location.reload(); }, 2500);
+                    } else {
+                        window.showNotification('Serverfehler beim Importieren: ' + (res.daten.message || 'Unbekannter Fehler'), 'error');
+                    }
+                })
+                .catch(function(err) {
+                    window.showNotification('Netzwerkfehler beim Importieren: ' + err, 'error');
+                });
+
+            } catch (err) {
+                window.showNotification('Fehler beim Einlesen der Datei: Die Datei enthÃ¤lt kein gÃ¼ltiges JSON.', 'error');
+            }
+        };
+
+        reader.onerror = function() {
+            window.showNotification('Fehler beim Lesen der Datei.', 'error');
+        };
+
+        reader.readAsText(datei);
+    }
+
+    function validiereImportierteStruktur(daten) {
+        var fehler = [];
+        if (!daten) {
+            fehler.push("Dateizuordnung leer");
+            return fehler;
+        }
+
+        if (!daten.survey_id || typeof daten.survey_id !== 'string' || !daten.survey_id.trim()) {
+            fehler.push("Fehlendes oder ungÃ¼ltiges Pflichtfeld 'survey_id'");
+        }
+        if (!daten.title || typeof daten.title !== 'string' || !daten.title.trim()) {
+            fehler.push("Fehlendes oder ungÃ¼ltiges Pflichtfeld 'title'");
+        }
+        if (!daten.role || typeof daten.role !== 'string' || (daten.role !== 'student' && daten.role !== 'professor')) {
+            fehler.push("Fehlendes oder ungÃ¼ltiges Pflichtfeld 'role' (muss 'student' oder 'professor' sein)");
+        }
+
+        if (!daten.questions || !Array.isArray(daten.questions)) {
+            fehler.push("Fehlendes oder ungÃ¼ltiges Fragen-Array ('questions')");
+        } else {
+            daten.questions.forEach(function(frage, i) {
+                var indexHuman = i + 1;
+                if (!frage.id || typeof frage.id !== 'string' || !frage.id.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'id' in Frage " + indexHuman);
+                }
+                if (!frage.type || typeof frage.type !== 'string' || !frage.type.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'type' in Frage " + indexHuman);
+                } else {
+                    var gueltigeTypen = ['text', 'single_choice', 'multiple_choice', 'rating'];
+                    if (gueltigeTypen.indexOf(frage.type) === -1) {
+                        fehler.push("UngÃ¼ltiger Fragetyp '" + frage.type + "' in Frage " + indexHuman + " (erlaubt sind: text, single_choice, multiple_choice, rating)");
+                    }
+                }
+                if (!frage.label || typeof frage.label !== 'string' || !frage.label.trim()) {
+                    fehler.push("Fehlendes Pflichtfeld 'label' in Frage " + indexHuman);
+                }
+                if (frage.required === undefined || typeof frage.required !== 'boolean') {
+                    fehler.push("Fehlendes Pflichtfeld 'required' (muss boolesch sein) in Frage " + indexHuman);
+                }
+
+                if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
+                    if (!frage.options || !Array.isArray(frage.options) || frage.options.length === 0) {
+                        fehler.push("Fehlendes oder leeres Options-Array ('options') fÃ¼r Auswahlfrage in Frage " + indexHuman);
+                    } else {
+                        frage.options.forEach(function(opt, oi) {
+                            var optIndex = oi + 1;
+                            if (opt.value === undefined || opt.value === null || String(opt.value).trim() === '') {
+                                fehler.push("Fehlendes 'value' in Option " + optIndex + " von Frage " + indexHuman);
+                            }
+                            if (opt.text === undefined || opt.text === null || String(opt.text).trim() === '') {
+                                fehler.push("Fehlendes 'text' in Option " + optIndex + " von Frage " + indexHuman);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        return fehler;
+    }
+
+    // -------------------------------------------------------
+    // Hilfsfunktion: HTML-Sonderzeichen escapen
+    // -------------------------------------------------------
+    function escapeHtml(str) {
+        if (typeof str !== 'string') return '';
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+</script>
+
+<!-- CSV-Export Abfrage-Modal -->
+<div id="csv-export-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">
+    <div style="background:#ffffff; padding:24px; border-radius:8px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.2); pointer-events:auto; text-align:center;">
+        <h3 style="margin-top:0; color:var(--color-hs-kehl);">CSV-Export Optionen</h3>
+        <p style="margin: 15px 0 25px; color:var(--color-text); font-size:0.95rem; line-height:1.4;">
+            Sie haben aktuell einen Filter aktiv. MÃ¶chten Sie nur die Daten der gefilterten Umfrage oder alle Umfragedaten exportieren?
+        </p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <button id="modal-btn-filtered" class="btn-primary" style="width:100%; padding:12px;">Nur gefilterte Umfrage exportieren</button>
+            <button id="modal-btn-all" class="btn-secondary" style="width:100%; padding:12px;">Alle Umfragen exportieren</button>
+            <button id="modal-btn-cancel" class="btn-secondary" style="width:100%; padding:12px; background-color:#e0e0e0; color:#333333; border-color:#e0e0e0;">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

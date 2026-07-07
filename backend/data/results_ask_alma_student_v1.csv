@@ -1,0 +1,11 @@
+result_id;timestamp;survey_id;question_id;answer
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q1;gar_nicht_nützlich
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q10;t
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q2;mehrmals_wöchentlich
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q3;ete
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q4;ja_etwas
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q5;teilweise_intuitiv
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q6;eher_nicht
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q7;t
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q8;oft
+adc4ab2f-2d74-4827-af63-e62ce9afb210;2026-07-06T12:08:47.776472Z;ask_alma_student_v1;q9;zufrieden

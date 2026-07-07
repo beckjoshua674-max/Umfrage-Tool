@@ -1,7 +1,9 @@
 import base64
+import csv
 import datetime
 import hashlib
 import hmac
+import io
 import json
 import os
 import uuid
@@ -9,322 +11,322 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-import pandas as pd
-
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-RESULTS_DIR = DATA_DIR / "results"
 SURVEY_FILES = {
     "student": DATA_DIR / "survey_student.json",
     "professor": DATA_DIR / "survey_professor.json",
 }
-ADMIN_USERS = {
-    "admin": {"password": "admin123", "role": "admin"},
-}
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"
 JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret").encode("utf-8")
 JWT_LIFETIME_SECONDS = 60 * 60 * 8
 
 
-def base64url_encode(raw):
-    """Kodiert Bytes im kompakten JWT-Base64url-Format."""
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+def b64url_encode(data):
+    """Kodiert Bytes fuer JWT ohne Padding."""
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def base64url_decode(value):
-    """Dekodiert JWT-Base64url-Werte mit optionaler Auffuellung."""
-    padding = "=" * ((4 - len(value) % 4) % 4)
-    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+def b64url_decode(data):
+    """Dekodiert Base64Url-Daten mit ergaenztem Padding."""
+    padding = "=" * ((4 - len(data) % 4) % 4)
+    return base64.urlsafe_b64decode((data + padding).encode("ascii"))
 
 
 def erstelle_jwt(username, role):
-    """Erstellt ein signiertes HS256-JWT fuer die lokale Admin-Anmeldung."""
+    """Erstellt ein einfaches HS256-JWT fuer den Admin-Login."""
     now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
     header = {"alg": "HS256", "typ": "JWT"}
     payload = {
-        "sub": username,
+        "username": username,
         "role": role,
         "iat": now,
         "exp": now + JWT_LIFETIME_SECONDS,
     }
-    header_segment = base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    payload_segment = base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signing_input = f"{header_segment}.{payload_segment}".encode("ascii")
-    signature = hmac.new(JWT_SECRET, signing_input, hashlib.sha256).digest()
-    return f"{header_segment}.{payload_segment}.{base64url_encode(signature)}"
+    header_b64 = b64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    payload_b64 = b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signatur_basis = f"{header_b64}.{payload_b64}".encode("ascii")
+    signatur = hmac.new(JWT_SECRET, signatur_basis, hashlib.sha256).digest()
+    return f"{header_b64}.{payload_b64}.{b64url_encode(signatur)}"
 
 
 def pruefe_jwt(token):
-    """Prueft Signatur und Ablaufzeit eines JWT und liefert den Payload."""
-    parts = token.split(".")
-    if len(parts) != 3:
+    """Prueft Signatur, Ablaufzeit und Admin-Rolle eines JWT."""
+    teile = token.split(".")
+    if len(teile) != 3:
         return None
 
-    signing_input = f"{parts[0]}.{parts[1]}".encode("ascii")
-    expected_signature = hmac.new(JWT_SECRET, signing_input, hashlib.sha256).digest()
+    signatur_basis = f"{teile[0]}.{teile[1]}".encode("ascii")
+    erwartete_signatur = hmac.new(JWT_SECRET, signatur_basis, hashlib.sha256).digest()
     try:
-        given_signature = base64url_decode(parts[2])
-    except (ValueError, TypeError):
+        gegebene_signatur = b64url_decode(teile[2])
+        payload = json.loads(b64url_decode(teile[1]).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
         return None
 
-    if not hmac.compare_digest(expected_signature, given_signature):
+    if not hmac.compare_digest(erwartete_signatur, gegebene_signatur):
         return None
 
-    try:
-        payload = json.loads(base64url_decode(parts[1]).decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
-        return None
-
+    exp = payload.get("exp")
     now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-    if payload.get("exp", 0) < now:
+    if isinstance(exp, int) and exp < now:
         return None
 
     return payload
 
 
 def normalisiere_rolle(rolle):
-    """Normalisiert Rollenparameter auf bekannte Umfrage-Dateien."""
+    """Begrenzt Rollen auf die vorhandenen Umfragedateien."""
     rolle = (rolle or "student").strip().lower()
     if rolle not in SURVEY_FILES:
-        return None
+        return "student"
     return rolle
 
 
-def lade_umfrage(rolle="student"):
-    """Laedt die rollenbasierte Umfragekonfiguration aus der Backend-Datenablage."""
-    rolle = normalisiere_rolle(rolle)
-    if rolle is None:
-        raise ValueError("Unbekannte Rolle.")
-
-    with SURVEY_FILES[rolle].open("r", encoding="utf-8") as file:
+def lade_umfrage(rolle):
+    """Laedt die Umfragedefinition fuer student oder professor."""
+    pfad = SURVEY_FILES[normalisiere_rolle(rolle)]
+    with pfad.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
-def speichere_umfrage(rolle, umfrage):
-    """Speichert eine rollenbasierte Umfragekonfiguration formatiert als JSON."""
-    with SURVEY_FILES[rolle].open("w", encoding="utf-8") as file:
-        json.dump(umfrage, file, ensure_ascii=False, indent=2)
+def speichere_umfrage(rolle, daten):
+    """Speichert eine Umfragedefinition in der passenden Rollendatei."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    pfad = SURVEY_FILES[normalisiere_rolle(rolle)]
+    with pfad.open("w", encoding="utf-8") as file:
+        json.dump(daten, file, ensure_ascii=False, indent=2)
         file.write("\n")
 
 
 def finde_umfrage_nach_id(survey_id):
-    """Sucht die passende Umfrage anhand der survey_id in allen Rollendateien."""
+    """Sucht eine Umfragedefinition anhand ihrer survey_id."""
     for rolle in SURVEY_FILES:
-        umfrage = lade_umfrage(rolle)
+        try:
+            umfrage = lade_umfrage(rolle)
+        except FileNotFoundError:
+            continue
         if umfrage.get("survey_id") == survey_id:
             return rolle, umfrage
     return None, None
 
 
-def schreibe_ergebnis(payload):
-    """Speichert eine einzelne Umfrageantwort als eigene JSON-Datei."""
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+def finde_umfrage_pfad_nach_id(survey_id):
+    """Sucht den Dateipfad einer Umfrage anhand ihrer survey_id."""
+    for rolle, pfad in SURVEY_FILES.items():
+        if not pfad.exists():
+            continue
+        with pfad.open("r", encoding="utf-8") as file:
+            daten = json.load(file)
+        if daten.get("survey_id") == survey_id:
+            return rolle, pfad
+    return None, None
+
+
+def validiere_umfrage_definition(payload):
+    """Prueft eine vom Admin gespeicherte Umfragedefinition."""
+    if not isinstance(payload, dict):
+        return "Der Request-Body muss ein JSON-Objekt sein."
+    for feld in ("survey_id", "role", "title", "questions"):
+        if feld not in payload:
+            return f"Das Pflichtfeld '{feld}' fehlt."
+    if payload["role"] not in SURVEY_FILES:
+        return "Das Feld 'role' muss 'student' oder 'professor' sein."
+    if not isinstance(payload["questions"], list):
+        return "Das Feld 'questions' muss eine Liste sein."
+
+    erlaubte_typen = {"text", "single_choice", "multiple_choice", "rating"}
+    for index, frage in enumerate(payload["questions"], start=1):
+        if not isinstance(frage, dict):
+            return f"Frage {index} muss ein Objekt sein."
+        for feld in ("id", "type", "label", "required"):
+            if feld not in frage:
+                return f"Pflichtfeld '{feld}' fehlt in Frage {index}."
+        if frage["type"] not in erlaubte_typen:
+            return f"Ungueltiger Fragetyp in Frage {index}."
+        if frage["type"] in {"single_choice", "multiple_choice"}:
+            if not isinstance(frage.get("options"), list) or not frage["options"]:
+                return f"Frage {index} benoetigt eine nicht-leere options-Liste."
+    return None
+
+
+def validiere_ergebnis_payload(payload):
+    """Validiert Antworten gegen die gespeicherte Umfragedefinition."""
+    if not isinstance(payload, dict):
+        return "Der Payload muss ein valides JSON-Objekt sein."
+
+    survey_id = payload.get("survey_id")
+    answers = payload.get("answers")
+    if not isinstance(survey_id, str) or not survey_id.strip():
+        return "Das Feld 'survey_id' fehlt oder ist ungueltig."
+    if not isinstance(answers, dict):
+        return "Das Feld 'answers' fehlt oder ist ungueltig."
+
+    _, umfrage = finde_umfrage_nach_id(survey_id)
+    if umfrage is None:
+        return f"Die uebergebene survey_id '{survey_id}' existiert nicht."
+
+    fragen = {frage["id"]: frage for frage in umfrage.get("questions", [])}
+
+    for frage_id, frage in fragen.items():
+        antwort = answers.get(frage_id)
+        if frage.get("required") and (antwort is None or str(antwort).strip() == ""):
+            return f"Das Pflichtfeld '{frage_id}' wurde nicht ausgefuellt."
+
+    for frage_id, antwort in answers.items():
+        if frage_id not in fragen:
+            return f"Die Frage-ID '{frage_id}' ist nicht vorhanden."
+
+        frage = fragen[frage_id]
+        typ = frage.get("type")
+        if antwort is None or str(antwort).strip() == "":
+            continue
+
+        if typ == "single_choice":
+            erlaubte_werte = {option["value"] for option in frage.get("options", [])}
+            if antwort not in erlaubte_werte:
+                return f"Ungueltiger Wert fuer Frage '{frage_id}'."
+        elif typ == "multiple_choice":
+            erlaubte_werte = {option["value"] for option in frage.get("options", [])}
+            einzelwerte = [wert.strip() for wert in str(antwort).split(",") if wert.strip()]
+            for wert in einzelwerte:
+                if wert not in erlaubte_werte:
+                    return f"Ungueltige Option '{wert}' fuer Frage '{frage_id}'."
+        elif typ == "rating":
+            try:
+                zahl = int(antwort)
+            except (TypeError, ValueError):
+                return f"Bewertung fuer Frage '{frage_id}' muss eine Zahl von 1 bis 5 sein."
+            if not 1 <= zahl <= 5:
+                return f"Bewertung fuer Frage '{frage_id}' muss zwischen 1 und 5 liegen."
+        elif typ == "text" and not isinstance(antwort, str):
+            return f"Antwort fuer Frage '{frage_id}' muss Text sein."
+
+    return None
+
+
+def schreibe_ergebnis_csv(payload):
+    """Speichert Antworten append-only in results_<survey_id>.csv."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     result_id = str(uuid.uuid4())
-    zielpfad = RESULTS_DIR / f"{result_id}.json"
+    timestamp = payload.get("timestamp") or datetime.datetime.utcnow().isoformat() + "Z"
+    csv_pfad = DATA_DIR / f"results_{payload['survey_id']}.csv"
+    neue_datei = not csv_pfad.exists()
 
-    datensatz = {
-        "result_id": result_id,
-        "received_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "survey_id": payload["survey_id"],
-        "client_timestamp": payload.get("timestamp"),
-        "answers": payload["answers"],
-    }
-
-    with zielpfad.open("w", encoding="utf-8") as file:
-        json.dump(datensatz, file, ensure_ascii=False, indent=2)
-        file.write("\n")
+    with csv_pfad.open("a", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        if neue_datei:
+            writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
+        for frage_id, antwort in payload["answers"].items():
+            writer.writerow([result_id, timestamp, payload["survey_id"], frage_id, antwort])
 
     return result_id
 
 
-def lade_ergebnisse():
-    """Laedt Ergebnisdateien und nutzt pandas fuer die tabellarische Aufbereitung."""
-    datensaetze = []
-    for pfad in sorted(RESULTS_DIR.glob("*.json")):
-        with pfad.open("r", encoding="utf-8") as file:
-            datensaetze.append(json.load(file))
+def lade_ergebnisse_csv():
+    """Liest alle Ergebnis-CSV-Dateien zusammen und gibt CSV-Text zurueck."""
+    ausgabe = io.StringIO()
+    writer = csv.writer(ausgabe, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
 
-    if not datensaetze:
-        return []
+    for csv_pfad in sorted(DATA_DIR.glob("results_*.csv")):
+        with csv_pfad.open("r", encoding="utf-8", newline="") as file:
+            reader = csv.reader(file, delimiter=";")
+            next(reader, None)
+            for zeile in reader:
+                if len(zeile) >= 5:
+                    writer.writerow(zeile[:5])
 
-    frame = pd.DataFrame(datensaetze)
-    frame = frame.where(pd.notna(frame), None)
-    return frame.to_dict(orient="records")
-
-
-def ist_leer(wert):
-    """Bewertet leere Pflichtantworten einheitlich."""
-    if wert is None:
-        return True
-    if isinstance(wert, str):
-        return not wert.strip()
-    return False
-
-
-def ist_iso_zeitstempel(wert):
-    """Prueft, ob ein Zeitstempel als ISO-8601-Zeichenkette lesbar ist."""
-    if not isinstance(wert, str):
-        return False
-
-    try:
-        datetime.datetime.fromisoformat(wert.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    return True
-
-
-def validiere_ergebnis_payload(payload):
-    """Prueft Struktur und Antworten fuer eingehende Umfrageantworten."""
-    if not isinstance(payload, dict):
-        return "Der Anfrage-Inhalt muss ein JSON-Objekt sein."
-
-    if not isinstance(payload.get("survey_id"), str) or not payload["survey_id"].strip():
-        return "Das Feld 'survey_id' muss als nicht-leerer Text uebergeben werden."
-
-    if "timestamp" in payload and not ist_iso_zeitstempel(payload["timestamp"]):
-        return "Das Feld 'timestamp' muss als ISO-8601-Zeichenkette uebergeben werden."
-
-    if not isinstance(payload.get("answers"), dict):
-        return "Das Feld 'answers' muss als Objekt mit Frage-IDs und Antworten uebergeben werden."
-
-    _, umfrage = finde_umfrage_nach_id(payload["survey_id"])
-    if umfrage is None:
-        return "Die uebergebene 'survey_id' ist fuer diese Backend-Konfiguration unbekannt."
-
-    fragen = {frage["id"]: frage for frage in umfrage.get("questions", [])}
-    unbekannte_fragen = sorted(set(payload["answers"].keys()) - set(fragen.keys()))
-    if unbekannte_fragen:
-        return f"Unbekannte Frage-IDs: {', '.join(unbekannte_fragen)}."
-
-    fehlende_pflichtfragen = [
-        frage_id
-        for frage_id, frage in fragen.items()
-        if frage.get("required") and ist_leer(payload["answers"].get(frage_id))
-    ]
-    if fehlende_pflichtfragen:
-        return f"Pflichtfragen ohne Antwort: {', '.join(fehlende_pflichtfragen)}."
-
-    for frage_id, antwort in payload["answers"].items():
-        frage = fragen[frage_id]
-        frage_typ = frage.get("type")
-
-        if frage_typ == "multiple_choice":
-            erlaubte_werte = {option["value"] for option in frage.get("options", [])}
-            if antwort not in erlaubte_werte:
-                return f"Antwort fuer '{frage_id}' ist keine erlaubte Option."
-        elif frage_typ == "text" and not isinstance(antwort, str):
-            return f"Antwort fuer '{frage_id}' muss eine Zeichenkette sein."
-        elif frage_typ == "likert":
-            if "options" in frage:
-                erlaubte_werte = {option["value"] for option in frage.get("options", [])}
-                if antwort not in erlaubte_werte:
-                    return f"Antwort fuer '{frage_id}' ist kein erlaubter Likert-Wert."
-            elif not isinstance(antwort, int) or not 1 <= antwort <= 5:
-                return f"Antwort fuer '{frage_id}' muss ein Likert-Wert von 1 bis 5 sein."
-
-    return None
-
-
-def validiere_frage(frage, umfrage):
-    """Prueft neue Fragen vor dem Speichern in der Umfragekonfiguration."""
-    if not isinstance(frage, dict):
-        return "Der Anfrage-Inhalt muss ein Frage-Objekt sein."
-
-    frage_id = frage.get("id")
-    frage_typ = frage.get("type")
-    label = frage.get("label")
-    erlaubte_typen = {"text", "multiple_choice", "likert"}
-
-    if not isinstance(frage_id, str) or not frage_id.strip():
-        return "Das Feld 'id' muss ein nicht-leerer Text sein."
-    if any(bestehend.get("id") == frage_id for bestehend in umfrage.get("questions", [])):
-        return "Eine Frage mit dieser ID existiert bereits."
-    if frage_typ not in erlaubte_typen:
-        return "Das Feld 'type' muss text, multiple_choice oder likert sein."
-    if not isinstance(label, str) or not label.strip():
-        return "Das Feld 'label' muss ein nicht-leerer Text sein."
-    if "required" in frage and not isinstance(frage["required"], bool):
-        return "Das Feld 'required' muss ein Boolean sein."
-
-    if frage_typ == "multiple_choice":
-        options = frage.get("options")
-        if not isinstance(options, list) or not options:
-            return "Multiple-Choice-Fragen benoetigen eine nicht-leere options-Liste."
-        for option in options:
-            if not isinstance(option, dict):
-                return "Jede Option muss ein Objekt sein."
-            if not isinstance(option.get("value"), str) or not option["value"].strip():
-                return "Jede Option benoetigt einen nicht-leeren value."
-            if not isinstance(option.get("text"), str) or not option["text"].strip():
-                return "Jede Option benoetigt einen nicht-leeren text."
-
-    frage.setdefault("required", True)
-    return None
+    return ausgabe.getvalue()
 
 
 class ApiHandler(BaseHTTPRequestHandler):
-    """HTTP-Handler fuer die JSON-Schnittstellen des Backends."""
+    """HTTP-Handler fuer die Backend-API."""
 
     def _sende_json(self, status_code, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self._sende_cors_header()
         self.end_headers()
         self.wfile.write(body)
+
+    def _sende_cors_header(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 
     def _lese_json_body(self):
         content_length = int(self.headers.get("Content-Length", "0"))
         if content_length == 0:
             return None
-
         raw_body = self.rfile.read(content_length)
         try:
             return json.loads(raw_body.decode("utf-8"))
         except json.JSONDecodeError:
             return None
 
-    def _rolle_aus_query(self, parsed_url):
-        query = parse_qs(parsed_url.query)
-        return normalisiere_rolle(query.get("role", ["student"])[0])
-
-    def _autorisierter_admin(self):
+    def _admin_payload(self):
         auth_header = self.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            self._sende_json(401, {"status": "error", "message": "Authorization-Token fehlt."})
-            return False
-
+            return None
         payload = pruefe_jwt(auth_header.removeprefix("Bearer ").strip())
-        if payload is None:
-            self._sende_json(401, {"status": "error", "message": "Authorization-Token ist ungueltig."})
-            return False
+        if payload and payload.get("role") == "admin":
+            return payload
+        return None
 
-        if payload.get("role") != "admin":
-            self._sende_json(403, {"status": "error", "message": "Admin-Rolle erforderlich."})
+    def _fordere_admin(self):
+        if self._admin_payload() is None:
+            self._sende_json(401, {"status": "error", "message": "Nicht autorisiert."})
             return False
-
         return True
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._sende_cors_header()
+        self.end_headers()
 
     def do_GET(self):
         parsed_url = urlparse(self.path)
         pfad = parsed_url.path
+        query = parse_qs(parsed_url.query)
 
         if pfad == "/api/health":
             self._sende_json(200, {"status": "ok", "service": "ask-alma-backend"})
             return
 
         if pfad == "/api/survey":
-            rolle = self._rolle_aus_query(parsed_url)
-            if rolle is None:
-                self._sende_json(400, {"status": "error", "message": "Unbekannte Rolle."})
+            survey_id = query.get("survey_id", [""])[0]
+            if survey_id:
+                _, umfrage = finde_umfrage_nach_id(survey_id)
+                if umfrage is None:
+                    self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
+                    return
+                self._sende_json(200, umfrage)
                 return
-            self._sende_json(200, lade_umfrage(rolle))
+
+            rolle = normalisiere_rolle(query.get("role", ["student"])[0])
+            try:
+                self._sende_json(200, lade_umfrage(rolle))
+            except FileNotFoundError:
+                self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
             return
 
         if pfad == "/api/results":
-            if not self._autorisierter_admin():
+            if not self._fordere_admin():
                 return
-            self._sende_json(200, lade_ergebnisse())
+            csv_text = lade_ergebnisse_csv()
+            body = csv_text.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self._sende_cors_header()
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
@@ -337,14 +339,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             payload = self._lese_json_body()
             username = payload.get("username") if isinstance(payload, dict) else None
             password = payload.get("password") if isinstance(payload, dict) else None
-            user = ADMIN_USERS.get(username)
-
-            if user is None or user["password"] != password:
-                self._sende_json(401, {"status": "error", "message": "Login fehlgeschlagen."})
+            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+                token = erstelle_jwt(ADMIN_USERNAME, "admin")
+                self._sende_json(200, {"token": token, "role": "admin"})
                 return
-
-            token = erstelle_jwt(username, user["role"])
-            self._sende_json(200, {"token": token, "role": user["role"]})
+            self._sende_json(401, {"status": "error", "message": "Login fehlgeschlagen."})
             return
 
         if pfad == "/api/results":
@@ -353,66 +352,46 @@ class ApiHandler(BaseHTTPRequestHandler):
             if fehler:
                 self._sende_json(400, {"status": "error", "message": fehler})
                 return
-
-            result_id = schreibe_ergebnis(payload)
+            result_id = schreibe_ergebnis_csv(payload)
             self._sende_json(201, {"status": "created", "result_id": result_id})
             return
 
-        if pfad == "/api/survey/questions":
-            if not self._autorisierter_admin():
+        if pfad == "/api/surveys":
+            if not self._fordere_admin():
                 return
-
-            rolle = self._rolle_aus_query(parsed_url)
-            if rolle is None:
-                self._sende_json(400, {"status": "error", "message": "Unbekannte Rolle."})
-                return
-
-            umfrage = lade_umfrage(rolle)
-            frage = self._lese_json_body()
-            fehler = validiere_frage(frage, umfrage)
+            payload = self._lese_json_body()
+            fehler = validiere_umfrage_definition(payload)
             if fehler:
                 self._sende_json(400, {"status": "error", "message": fehler})
                 return
-
-            umfrage.setdefault("questions", []).append(frage)
-            speichere_umfrage(rolle, umfrage)
-            self._sende_json(201, {"status": "created", "question": frage})
+            speichere_umfrage(payload["role"], payload)
+            self._sende_json(201, {"status": "created", "survey_id": payload["survey_id"]})
             return
 
         self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
 
     def do_DELETE(self):
-        parsed_url = urlparse(self.path)
-        pfad = parsed_url.path
-        prefix = "/api/survey/questions/"
+        pfad = urlparse(self.path).path
+        prefix = "/api/surveys/"
 
         if not pfad.startswith(prefix):
             self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
             return
-
-        if not self._autorisierter_admin():
+        if not self._fordere_admin():
             return
 
-        rolle = self._rolle_aus_query(parsed_url)
-        if rolle is None:
-            self._sende_json(400, {"status": "error", "message": "Unbekannte Rolle."})
+        survey_id = unquote(pfad[len(prefix):]).strip()
+        _, umfrage_pfad = finde_umfrage_pfad_nach_id(survey_id)
+        if umfrage_pfad is None:
+            self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
             return
 
-        frage_id = unquote(pfad[len(prefix):])
-        umfrage = lade_umfrage(rolle)
-        fragen = umfrage.get("questions", [])
-        neue_fragen = [frage for frage in fragen if frage.get("id") != frage_id]
-
-        if len(neue_fragen) == len(fragen):
-            self._sende_json(404, {"status": "error", "message": "Frage nicht gefunden."})
-            return
-
-        umfrage["questions"] = neue_fragen
-        speichere_umfrage(rolle, umfrage)
-        self._sende_json(200, {"status": "deleted", "question_id": frage_id})
+        umfrage_pfad.unlink()
+        self.send_response(204)
+        self._sende_cors_header()
+        self.end_headers()
 
     def log_message(self, format, *args):
-        """Schreibt Serverlogs in einem einfachen deutschsprachigen Format."""
         print(f"{self.address_string()} - {format % args}")
 
 

@@ -8,11 +8,9 @@
 <section class="survey-box role-select-box">
     <div class="role-grid">
         <a href="{{ url_for('survey', role='student') }}" class="role-btn">
-            <span class="role-icon">🎓</span>
             <span class="role-text">Ich bin Student</span>
         </a>
         <a href="{{ url_for('survey', role='professor') }}" class="role-btn">
-            <span class="role-icon">🏫</span>
             <span class="role-text">Ich bin Professor</span>
         </a>
     </div>
@@ -20,7 +18,6 @@
     <hr class="role-divider">
     
     <a href="{{ url_for('login_page', role='admin') }}" class="role-btn admin-btn">
-        <span class="role-icon">⚙️</span>
         <span class="role-text">Login als Admin</span>
     </a>
 </section>

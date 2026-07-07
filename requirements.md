@@ -1,185 +1,199 @@
-# Projektanforderungen: Umfrage-Tool (Evaluation „Ask Alma“)
+# Projektanforderungen und Technische Spezifikation: Umfrage-Tool (Evaluation "Ask Alma")
 
-## 1. Projektübersicht (Modul: Verteilte Systeme)
-Entwicklung einer Web-Anwendung zur Durchführung von Umfragen im Rahmen des Moduls **„Verteilte Systeme“**. Der initiale Fokus liegt auf der Evaluation des Nutzens des KI-Tools „Ask Alma“. 
-Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzipien (z. B. saubere Client-Server-Trennung, lose Kopplung über Schnittstellen) aufweisen. Das System muss generisch aufgebaut sein, um perspektivisch für beliebige weitere Umfragen nutzbar zu sein.
+Diese Dokumentation dient als unumstößliche Definition of Done (DoD) und exakte technische Spezifikation für das Projekt. Sie ist in einem rein professionellen, sachlichen und akademischen Ton verfasst. Die Verwendung von Emojis oder informellen Symbolen ist in der gesamten Dokumentation untersagt.
 
-## 2. Projektmanagement & Multi-Agenten-Workflow
-* **KI-Tool-Stack:** Die Entwicklung und Planung erfolgt im Zusammenspiel der KI-Systeme **Codex** und **Antigravity**. 
-* **Single Source of Truth:** Diese `requirements.md` ist das zentrale Synchronisationsdokument für beide Tools. Vor jeder neuen Implementierungsphase ist der aktuelle Stand dieses Dokuments auszulesen.
-* **Update-Pflicht:** Sobald Anforderungen im Projektverlauf (egal mit welchem Tool) verfeinert oder geändert werden, ist diese Datei zwingend und umgehend zu aktualisieren.
-* **Chat-Verfeinerungen:** Wenn Anforderungen im Chat mit Codex konkretisiert, geändert oder neu entschieden werden, muss Codex diese Anpassungen unmittelbar in dieser `requirements.md` nachpflegen.
-* **Timebox für den ersten Prototyp (V1):** max. 1–2 Stunden.
+---
 
-## 3. Architektur & Prinzipien Verteilter Systeme (Fokus V1)
-* **Client-Server-Architektur:** Das System muss aus einem strikt getrennten Frontend (Client) und einem Backend (Server) bestehen.
-* **Schnittstellen-Kommunikation:** Der Datenaustausch zwischen Client und Server erfolgt zustandslos (stateless) über eine definierte API (RESTful oder vergleichbar) im JSON-Format.
-* **Trennung von Logik und Daten:** Die Umfrage-Definitionen (Fragen, Antwortmöglichkeiten) werden als JSON-Konfiguration vom Backend verwaltet und dynamisch über die API an den Client ausgeliefert.
+## 1. Systemarchitektur und API-Vertrag
+Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (Backend) arbeitet absolut zustandslos (stateless). Es werden keine In-Memory-Verkettungen, Sessions oder serverseitig gespeicherten Zustände zwischen den einzelnen HTTP-Anfragen am Backend verwaltet.
 
-## 4. Funktionale Anforderungen (Prototyp V1)
-* **Umfrage-Engine (Client):** Dynamischer Aufbau des Fragebogens basierend auf der API-Antwort. Unterstützung für Freitext, Multiple-Choice und Likert-Skalen. Navigation durch die Umfrage.
-* **Datenspeicherung (Server):** Ein API-Endpunkt (z. B. `POST /api/results`), der die Antworten vom Client entgegennimmt und speichert (für V1 reicht eine lokale Dateiablage als JSON/CSV oder eine leichtgewichtige Datenbank wie SQLite).
+### 1.1 Übersicht der API-Endpunkte
 
-## 5. UI & Design (Corporate Identity)
-* Das Frontend muss sich am Corporate Design der Hochschule orientieren.
-* **Referenz:** https://www.hs-kehl.de/
-* Das Design (Farbschema, Typografie) der Referenzseite ist via CSS auf das Umfrage-Tool anzuwenden.
+| Ressource | URL | HTTP-Methode | Beschreibung | Erwartete HTTP-Statuscodes |
+|---|---|---|---|---|
+| **Health** | `/api/health` | `GET` | Überprüfung der Backend-Erreichbarkeit | `200 OK`, `503 Service Unavailable` |
+| **Login** | `/api/login` | `POST` | Admin-Authentifizierung via Credentials | `200 OK` (liefert JWT), `401 Unauthorized` |
+| **Survey** | `/api/survey` | `GET` | Abruf der Umfragedefinition (optional mit `?role=...`) | `200 OK`, `404 Not Found` |
+| **Survey** | `/api/surveys` | `POST` | Erstellen oder Ändern einer Umfragedefinition (Admin, geschützt) | `201 Created`, `400 Bad Request`, `401 Unauthorized` |
+| **Results** | `/api/results` | `POST` | Einreichen von Umfrageergebnissen | `201 Created`, `400 Bad Request` |
+| **Results** | `/api/results` | `GET` | Abruf aller eingegangenen Ergebnisse für den Admin (geschützt) | `200 OK`, `401 Unauthorized` |
+| **Survey** | `/api/surveys/{survey_id}` | `DELETE` | Löschen einer Umfragedefinition (Admin, geschützt) | `204 No Content`, `401 Unauthorized`, `404 Not Found` |
 
-## 6. Zukünftige Ausbaustufen (Out of Scope für V1)
-* **Containerisierung:** Bereitstellung von Client, Server und Datenbank als unabhängige Docker-Container.
-* **Automatisierung:** Vollautomatisierte Dokumentation und Agenten-Steuerung via `Agents.md`.
-* **Microservices:** Auslagerung von Diensten (z. B. Authentifizierung, Daten-Auswertung).
+### 1.2 Sicherheitsvorgaben (JWT-Token und Rollen)
+* **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/survey` (mit optionaler Rolle), `POST /api/results`.
+* **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
+* Bei fehlendem oder ungültigem Token antwortet der Server mit `401 Unauthorized`. Besitzt das Token nicht die Rolle `admin`, antwortet der Server mit `403 Forbidden`.
+* **Prävention von Browser-Caching (Cache-Busting):** Um die Anzeige veralteter Datensätze im Dashboard zu verhindern, sendet das Backend bei `GET /api/results` den HTTP-Response-Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`. Das Frontend hängt zusätzlich bei jedem API-Aufruf an diesen Endpunkt einen dynamischen Zeitstempel-Parameter (`?t=Zeitstempel`) als Cache-Buster an.
 
-## 7. API-Schnittstellen (Frontend <-> Backend)
-Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
+---
 
-**Sicherheitsvorgabe (JWT-Token):**
-- **Öffentliche Endpunkte (kein Token nötig):** `GET /api/health`, `POST /api/login`, `GET /api/survey`, `POST /api/results`.
-- **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich, nur Rolle `admin`):** `POST /api/survey/questions`, `DELETE /api/survey/questions/<id>`, `GET /api/results`.
-- Wird ein geschützter Endpunkt ohne oder mit ungültigem Token aufgerufen, muss das Backend mit `401 Unauthorized` antworten.
+## 2. Datenmodelle und Payloads
 
-### 7.0 GET `/api/health`
-- **Beschreibung:** Liefert einen einfachen Betriebsstatus des Backends, damit Frontend und Entwicklung prüfen können, ob der Server erreichbar ist.
-- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
-- **Erwartete Antwort (JSON):**
-  ```json
-  {
-    "status": "ok",
-    "service": "ask-alma-backend"
-  }
-  ```
-- **Statuscode:** `200 OK` bei erreichbarem Backend.
+### 2.1 Umfragedefinition (GET `/api/survey`)
+Die Definition einer Umfrage wird im JSON-Format übertragen und enthält Metadaten sowie ein Fragen-Array.
 
-### 7.0.1 POST `/api/login`
-- **Beschreibung:** Authentifiziert einen Benutzer. Aktuell ist nur die Admin-Rolle loginpflichtig.
-- **Erwarteter Payload (JSON):**
-  ```json
-  {
-    "username": "...",
-    "password": "..."
-  }
-  ```
-- **Test-Credentials (für Entwicklung):** Das Backend muss mindestens folgende Testbenutzer akzeptieren:
-  - `admin` / `admin123` (Rolle: `admin`)
-- **Erwartete Antwort:** Status `200 OK` mit JWT Token und der zugewiesenen Rolle.
-  ```json
-  {
-    "token": "jwt_token_xyz",
-    "role": "admin"
-  }
-  ```
-- **Fehlerantwort:** Status `401 Unauthorized`, wenn Login fehlschlägt.
-
-### 7.1 GET `/api/survey`
-- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend. **Kein Token erforderlich.**
-- **Erwartete Anfrage:** Query-Parameter `?role=student|professor`. Das Backend **muss** je nach Rolle einen **unterschiedlichen Fragenkatalog** ausliefern. Kein Request-Body.
-- **Rollenbasierte Datendateien:** Das Backend lädt die Fragen aus getrennten JSON-Dateien:
-  - `backend/data/survey_student.json` → wird bei `?role=student` ausgeliefert.
-  - `backend/data/survey_professor.json` → wird bei `?role=professor` ausgeliefert.
-  - Fehlt der Parameter `role`, wird standardmäßig `survey_student.json` geladen.
-- **Erwartete Antwort (JSON):**
-  ```json
-  {
-    "survey_id": "ask_alma_eval_v1",
-    "title": "Ask Alma - Evaluation",
-    "description": "Umfrage-Tool der Hochschule Kehl zur Evaluation des Nutzens von Ask Alma.",
-    "questions": [
-      {
-        "id": "q1",
-        "type": "text",
-        "label": "1. Welche Erfahrungen haben Sie bisher mit dem Tool \"Ask Alma\" gemacht?",
-        "required": true
-      },
-      {
-        "id": "q2",
-        "type": "multiple_choice",
-        "label": "2. Wie bewerten Sie die generelle Nützlichkeit von \"Ask Alma\" für Ihr Studium?",
-        "options": [
-          { "value": "sehr_nuetzlich", "text": "Sehr nützlich" },
-          { "value": "wenig_nuetzlich", "text": "Wenig nützlich" }
-        ],
-        "required": true
-      }
-    ]
-  }
-  ```
-
-### 7.2 POST `/api/results`
-- **Beschreibung:** Sendet die ausgefüllten Umfrageantworten vom Frontend an das Backend.
-- **Content-Type:** `application/json`
-- **Erwarteter Payload (JSON):**
-  ```json
-  {
-    "survey_id": "ask_alma_eval_v1",
-    "timestamp": "2026-06-12T10:45:00Z",
-    "answers": {
-      "q1": "Antworttext...",
-      "q2": "sehr_nuetzlich"
-    }
-  }
-  ```
-- **Validierungsregeln:**
-  - `survey_id` muss ein nicht-leerer String sein und zur vom Backend ausgelieferten Umfrage passen.
-  - `timestamp` ist optional, muss bei Übergabe aber ein ISO-8601-String sein.
-  - `answers` muss ein JSON-Objekt sein, dessen Keys den Frage-IDs aus `GET /api/survey` entsprechen.
-  - Pflichtfragen (`required: true`) müssen eine nicht-leere Antwort enthalten.
-  - Antworten auf `multiple_choice`-Fragen müssen exakt einem `value` der jeweiligen `options` entsprechen.
-- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
-  ```json
-  {
-    "status": "created",
-    "result_id": "uuid-der-gespeicherten-antwort"
-  }
-  ```
-- **Erwartete Fehlerantwort:** Status `400 Bad Request`, wenn der Payload nicht valide ist.
-  ```json
-  {
-    "status": "error",
-    "message": "Beschreibung des Validierungsfehlers"
-  }
-  ```
-
-### 7.3 POST `/api/survey/questions`
-- **Rollenbezug:** Optionaler Query-Parameter `?role=student|professor`; ohne Parameter wird `student` verwendet.
-- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu.
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
-- **Erwarteter Payload (JSON):** Ein einzelnes Frage-Objekt (ähnlich der Objekte in `GET /api/survey`).
-- **Erwartete Antwort:** Status `201 Created`.
-
-### 7.4 DELETE `/api/survey/questions/<id>`
-- **Rollenbezug:** Optionaler Query-Parameter `?role=student|professor`; ohne Parameter wird `student` verwendet.
-- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID.
-- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
-- **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
-
-### 7.5 GET `/api/results`
-- **Zugriffsbeschraenkung:** Nur fuer Rolle `admin`. Erfordert gueltiges JWT-Token im Header.
-- **Beschreibung:** Liefert alle bisher gespeicherten Umfrage-Antworten. (Wird im Admin-Dashboard genutzt)
-- **Erwartete Antwort (JSON):** Array von Ergebnis-Objekten.
-  ```json
-  [
+```json
+{
+  "survey_id": "ask_alma_eval_student_v1",
+  "title": "Ask Alma - Evaluation für Studierende",
+  "questions": [
     {
-      "result_id": "uuid",
-      "received_at": "2026-06-12T10:45:00Z",
-      "survey_id": "ask_alma_eval_v1",
-      "answers": {
-        "q1": "Antworttext...",
-        "q2": "sehr_nuetzlich"
-      }
+      "id": "q1",
+      "type": "text",
+      "label": "Welche Erfahrungen haben Sie bisher mit 'Ask Alma' gemacht?",
+      "required": true
+    },
+    {
+      "id": "q2",
+      "type": "single_choice",
+      "label": "Wie bewerten Sie die Nützlichkeit von 'Ask Alma'?",
+      "required": true,
+      "options": [
+        { "value": "täglich", "text": "Täglich" },
+        { "value": "nie", "text": "Nie" }
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "multiple_choice",
+      "label": "In welchen Bereichen nutzen Sie das Tool?",
+      "required": false,
+      "options": [
+        { "value": "prüfungsvorbereitung", "text": "Prüfungsvorbereitung" },
+        { "value": "recherche", "text": "Recherche" }
+      ]
+    },
+    {
+      "id": "q4",
+      "type": "rating",
+      "label": "Geben Sie eine Gesamtbewertung ab (1 bis 5 Sterne):",
+      "required": true
     }
   ]
-  ```
-
-## 8. Abhängigkeiten (Backend)
-Für die Auswertung der gespeicherten Umfrageergebnisse muss die Python-Bibliothek `pandas` verwendet werden. Die installierbaren Projektabhängigkeiten werden zentral in `requirements.txt` gepflegt:
-```text
-Python >= 3.10
-pandas>=2.2,<3.0
+}
 ```
 
-## 9. Abhängigkeiten (Frontend)
-Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt und sind ebenfalls in `requirements.txt` enthalten:
-```text
-Flask==3.0.3
-requests==2.31.0
+### 2.2 Antwort-Payload (POST `/api/results`)
+Die Antworten werden als JSON-Objekt übertragen.
+
+```json
+{
+  "survey_id": "ask_alma_eval_student_v1",
+  "timestamp": "2026-07-06T13:46:00Z",
+  "answers": {
+    "q1": "Es hilft mir sehr bei der Prüfungsvorbereitung.",
+    "q2": "täglich",
+    "q3": "prüfungsvorbereitung,recherche",
+    "q4": "5"
+  }
+}
 ```
+
+---
+
+## 3. Client-Spezifikationen und State Management
+
+### 3.1 Dynamisches UI-Rendering
+Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelieferten JSON-Objekts.
+* **Typ `text`**: Generierung einer HTML-Textarea.
+* **Typ `single_choice`**: Generierung von Radio-Buttons, die im Frontend als eckige Kästchen gerendert werden.
+  * **Erzwingung der Single-Choice-Logik:** Das System stellt auf Clientseite strikt sicher, dass zu jedem Zeitpunkt maximal eine Option der Frage ausgewählt sein kann. Das Markieren einer anderen Option deselektiert die vorherige automatisch. Die Javascript-Logik wird separat pro Formular/Frage isoliert (z. B. durch Iteration über das jeweilige Formular/Frage-Container), sodass das Klicken einer Option nur Elemente derselben Frage deselektiert. Im finalen Antwort-Payload an den Server wird ein einzelner String-Wert übergeben.
+* **Typ `multiple_choice`**: Generierung von Checkboxen, die im Frontend ebenfalls als eckige Kästchen gerendert werden.
+* **Typ `rating`**: Generierung einer horizontalen Reihe aus 5 eckigen Boxen (Zahlen 1 bis 5).
+  * **Aktiv-Markierung & visuelles Feedback:** Sobald der Nutzer eine Zahl anklickt, wird die entsprechende Box sofort als aktiv markiert (durch farbliches Füllen der Box und weiße Textfarbe der Zahl). Alle anderen Zahlenboxen dieser Frage werden deselektiert.
+  * **Orientierungshilfe (Legende):** Direkt über der Zahlenreihe (1 bis 5) wird eine verständliche Beschriftung als Legende eingeblendet, die die Pole der Skala definiert („Skala: 1 = Sehr gut, 5 = Ungenügend“).
+* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definiertes Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
+
+### 3.2 Client-Zustandsmanagement (States)
+Der Client durchläuft folgende Phasen:
+1. **Init**: Laden und Verarbeiten der Umfragedefinition von der API.
+2. **In-Progress**: Interaktive Beantwortung. Der Client erzwingt ein Route Guarding, um ein Überspringen von Fragen zu verhindern.
+3. **Submitting**: Daten werden zu einem JSON-Payload aggregiert und asynchron versendet. Die UI wird während der Übertragung blockiert (Deaktivierung aller Buttons und Ladeanzeige).
+4. **Completed**: Erfolgreiches Senden, Bereinigung der Session-Daten und Setzen des Cookies.
+
+### 3.3 Speicher und Sicherheit
+* **Missbrauchsschutz (Completed-Cookie):** Nach erfolgreichem Absenden wird ein Cookie namens `survey_completed_<survey_id>` gesetzt (Ablaufzeit: 30 Tage, `httponly=True`, `samesite=Lax`). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt die Danke-Seite.
+* **JWT-Verarbeitung:** Das Admin-JWT wird im Authorization-Header (`Authorization: Bearer <token>`) mitgeführt. Bei einer HTTP `401 Unauthorized` Antwort des Servers wird die Client-Session sofort verworfen und ein Redirect zur Login-Seite durchgeführt.
+* **Ausschließen von Client-Caching auf Seitenebene:** Die Frontend-Route `/admin` liefert in ihrer HTTP-Antwort explizit den Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` aus, um ein Caching der gesamten HTML-Seite durch den Browser zu blockieren.
+
+### 3.4 Bereinigung des Admin-Headers und automatisches Session-Handling
+* Oben rechts im Admin-Header befindet sich ausschließlich ein einziger "Logout"-Button.
+* Alle redundanten Navigationselemente wie "Abmelden", "Zurück zur Startseite" oder "Lockout" sind vollständig entfernt.
+* Beim Klick on "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
+* **Automatischer Logout bei URL-Wechsel:** Navigiert ein angemeldeter Administrator manuell aus dem Admin-Bereich heraus (z. B. durch Eingabe einer anderen URL wie der Startseite oder der Umfrage-Teilnahmeseite), wird die Session serverseitig beim Abfangen der Anfrage sofort und automatisch gelöscht. Das JWT-Token wird ohne manuelle Interaktion verworfen, um den Administrator-Zustand vollständig zu bereinigen.
+
+---
+
+## 4. Server-Spezifikationen und Datenhaltung
+
+### 4.1 Persistenz
+* **Umfragen:** Persistierung als JSON-Dateien im Backend-Verzeichnis.
+* **Ergebnisse:** Persistierung relational in CSV-Dateien (`results_<survey_id>.csv`). Der Speicherprozess arbeitet strikt append-only (Immutability by Design). Ein Ändern oder Löschen von Datensätzen via API ist nicht zulässig.
+* Das Spaltenformat der CSV lautet: `result_id;timestamp;survey_id;question_id;answer`.
+
+### 4.2 Serverseitige Strikt-Validierung (Single Source of Truth)
+Bei einem `POST /api/results` validiert der Server zwingend:
+1. **Payload-Format:** Request-Body ist strukturell valides JSON.
+2. **Referenzielle Integrität:** Die übergebene `survey_id` existiert im Dateisystem.
+3. **Vollständigkeit:** Alle Pflichtfelder (`required: true`) enthalten eine nicht-leere Antwort.
+4. **Wertebereich:** Die eingereichten Werte entsprechen exakt den in der Definition spezifizierten `value`-Optionen.
+
+Schlägt eine Validierung fehl, wird die Speicherung verweigert (kein Schreibzugriff) und ein HTTP `400 Bad Request` mit Fehlerbeschreibung im JSON-Body zurückgegeben.
+
+---
+
+## 5. Spezifikation der Admin-Oberfläche
+
+### 5.1 Bereich Ergebnisse anzeigen
+Die Darstellung im Tab "Ergebnisse anzeigen" erfolgt in folgender hierarchischer Reihenfolge:
+* **Sektion 1 (Oben - Priorität 1):** Die aggregierte Auswertung mit dem Titel "Auswertung" (ohne technische Beschreibungstexte bezüglich der serverseitigen Berechnung). Direkt neben der Überschrift befindet sich ein Dropdown-Auswahlmenü (Filter), mit dem der Administrator Statistiken und Balkendiagramme der Antworthäufigkeiten nach einer spezifischen Umfrage filtern kann. Bei Auswahl einer Umfrage aktualisieren sich die Daten sofort. Ein Button "CSV exportieren" ist in dieser Sektion platziert, um den Export der aggregierten Daten zu ermöglichen.
+* **Sektion 2 (Unten - Priorität 2):** Darunter folgt die Sektion für die einzelnen, eingegangenen Rohdaten aus der CSV-Datei.
+* **Button-Platzierung in Sektion 2:** Der zweite "CSV exportieren"-Button für den Rohdaten-Export befindet sich auf Höhe der Überschrift dieser zweiten Sektion ("Eingegangene Ergebnisse"), rechts neben der Überschrift angeordnet. Darunter folgt die chronologische Tabelle der Einzeldaten.
+
+### 5.2 Bereich Umfragen bearbeiten
+Das Bearbeiten und Aktualisieren bestehender Umfragen wird wie folgt geregelt:
+1. Der Client lädt die bestehende Struktur via `GET /api/survey?role=admin` (oder mit entsprechender Rolle).
+2. Nach Modifikation im Formular-Editor sendet der Client die aktualisierte Struktur via `POST /api/surveys` an das Backend.
+3. Das Backend nimmt den Request unter JWT-Absicherung entgegen, validiert die Definition und überschreibt die bestehende JSON-Datei im Dateisystem.
+
+### 5.3 Verhalten der CSV-Export-Schaltflächen bei aktiver Filterung
+Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt hat (Sektion 1 via Dropdown-Menü oder Sektion 2 via Klick-Filter-Buttons) und auf eine der beiden "CSV exportieren"-Schaltflächen klickt, wird die Ausführung des Downloads unterbrochen und eine Benutzerabfrage als rein textbasiertes Browser-Modal geschaltet:
+* **Option A ("Nur gefilterte Umfrage exportieren"):** Lädt eine CSV-Datei herunter, die ausschließlich die Zeilen und Antworten der aktuell im Filter ausgewählten Umfrage-ID enthält.
+* **Option B ("Alle Umfragen exportieren"):** Ignoriert den aktuellen Filter und lädt die komplette CSV-Datei mit sämtlichen im System existierenden Ergebnissen herunter.
+* **Abbrechen-Schaltfläche:** Schließt das Modal ohne Aktion.
+* **Verhalten ohne aktiven Filter:** Wenn kein Filter ausgewählt ist (Anzeige steht auf "Alle Umfragen" bzw. "Alle"), entfällt das Modal und der Button startet direkt den Download der vollständigen CSV-Datei.
+* Das Modal ist in reinem, sachlichem Deutsch verfasst, verwendet korrekte deutsche Umlaute und ist absolut frei von Emojis oder Symbolen.
+
+### 5.4 Import-Funktion für Umfragedefinitionen
+Im Menüpunkt "Umfrage erstellen" (Tab 3) ist im oberen Bereich ein standardisiertes Datei-Upload-Feld mit der Beschriftung „Umfrage importieren“ vorhanden.
+* **Funktionsweise:** Der Administrator lädt eine lokal gespeicherte JSON-Datei hoch. Der Client liest diese Datei ein und validiert die Struktur vollständig auf Clientseite vor der Übertragung an das Backend.
+* **Validierung (Konformitätsprüfung):** Geprüft werden die Pflichtfelder `survey_id`, `title`, `role` sowie das Array `questions` (jede Frage benötigt `id`, `type`, `label`, `required` und bei Auswahlfragen ein nicht-leeres Options-Array `options` mit `value` und `text`).
+* **Fehlermeldungen:** Tritt ein Validierungsfehler auf, wird der Sendevorgang blockiert. Das System zeigt dem Administrator ganz oben eine detaillierte, sachliche rote Meldung mit genauer Nennung der fehlerhaften Frage (z. B. „Fehlendes Pflichtfeld 'type' in Frage 2“).
+* **Erfolgsfall:** Ist die Datei valide, wird sie automatisch per POST `/api/surveys` an den Server übertragen.
+
+---
+
+## 6. Strikte Format- und UI-Vorgaben: Verbot von Emojis und Umlaut-Ersatzschreibweisen
+* Im gesamten Projekt – sowohl in allen Dokumentationsdateien als auch im Quellcode und der gesamten grafischen Benutzeroberfläche (UI) – ist die Verwendung von Emojis, Piktogrammen, grafischen Symbolen (z. B. SVG-Icons) oder Sonderzeichen (wie Pfeilen, Häkchen oder Warndreiecken) strengstens untersagt.
+* Jegliche visuelle Kennzeichnung oder Navigation hat ausschließlich über rein sachlichen, professionellen Text zu erfolgen.
+* **Strikte Umlaut-Regel (Encoding-Erzwingung):** Sämtliche Systemtexte, Bezeichnungen, Labels und Elemente der Benutzeroberfläche müssen echte deutsche Umlaute (ä, ö, ü, ß) verwenden. Jede Form von Ersatzschreibweisen (ae, oe, ue) oder fehlerhaften ASCII/ISO-Codierungen im Frontend ist technisch unzulässig. Die Zeichenkodierung ist im gesamten Projekt ausnahmslos auf UTF-8 konfiguriert.
+
+---
+
+## 7. Systemweites einheitliches Benachrichtigungssystem
+Für alle Systemmeldungen der Anwendung (wie Download-Bestätigungen, Pflichtfeldwarnungen, Erfolgsmeldungen und Fehlermeldungen) gilt ein einheitliches Benachrichtigungssystem:
+
+### 7.1 Einmaligkeits-Prinzip
+* Vor dem Rendern einer Meldung muss das Frontend prüfen, ob dieselbe Meldung aktuell bereits angezeigt wird.
+* Jede spezifische Benachrichtigung darf zu jedem Zeitpunkt maximal einmal im Sichtfeld des Nutzers existieren. Redundante Doppelmeldungen sind technisch zu blockieren.
+
+### 7.2 Farbcodierung nach Dringlichkeit
+* **Rot (Handlungsaufforderung und Fehler):** Meldungen, bei denen der Benutzer aktiv handeln muss oder ein Fehler vorliegt (nicht ausgefüllte Pflichtfragen, ungültige Wertebereiche, Serververbindungsfehler, fehlgeschlagener Login), müssen in Rot gerendert werden.
+* **Blau (Rein informativ und Erfolg):** Meldungen informativen Charakters oder Erfolgsbestätigungen (erfolgreicher Datei-Export, erfolgreiches Absenden der Antworten, erfolgreicher Login) müssen in Blau gerendert werden.
+
+### 7.3 Automatisches Ausblenden (Timeout)
+* Blaue Meldungen (Informationen und Erfolge) müssen nach 5 bis 10 Sekunden automatisch und ohne Benutzerinteraktion aus der UI ausgeblendet werden.
+* Rote Meldungen (Fehler) bleiben dauerhaft sichtbar, bis der Fehler behoben wurde oder die Meldung vom Benutzer manuell geschlossen wird.
+
+### 7.4 Positionierung
+* Alle globalen Statusmeldungen werden einheitlich ganz oben im sichtbaren Bereich der Benutzeroberfläche platziert.
