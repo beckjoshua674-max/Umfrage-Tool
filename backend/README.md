@@ -1,6 +1,6 @@
 # Backend - Ask Alma Umfrage-Tool
 
-Python/Flask-Server fuer die API des Umfrage-Tools.
+Python-Server fuer die API des Umfrage-Tools.
 
 ## Start
 
@@ -13,5 +13,6 @@ Der Server laeuft standardmaessig auf `http://localhost:8000`.
 
 ## Datenablage
 
-- `mock-data/survey-questions.json`: zentrale Umfragedefinition, ausgeliefert ueber `GET /api/survey`
+- `data/survey_student.json`: Fragenkatalog fuer `GET /api/survey?role=student`
+- `data/survey_professor.json`: Fragenkatalog fuer `GET /api/survey?role=professor`
 - `data/results/*.json`: gespeicherte Umfrageantworten, eine Datei pro Einreichung

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ask Alma - Hochschule Kehl{% endblock %}</title>
+    <!-- Verweist auf den static-Ordner in Flask -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="container header-content">
+            <a href="{{ url_for('index') }}" class="logo-link">
+                <img src="https://www.hs-kehl.de/wp-content/uploads/logo-new.svg" alt="Hochschule Kehl Logo" class="header-logo">
+            </a>
+            <div class="header-titles">
+                <h1>{% block header_title %}Ask Alma Evaluation{% endblock %}</h1>
+                <p>{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>
+            </div>
+            
+            {% if session.get('token') %}
+            <div style="position: absolute; right: var(--spacing-md); top: 30px;">
+                <a href="{{ url_for('logout') }}" class="btn-outline-light btn-sm">Logout</a>
+            </div>
+            {% endif %}
+            
+            {% block header_actions %}{% endblock %}
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Globale Fehleranzeigen via Flask Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <ul class="flashes">
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <p>&copy; 2026 Hochschule für öffentliche Verwaltung Kehl - Verteilte Systeme</p>
+        </div>
+    </footer>
+</body>
+</html>

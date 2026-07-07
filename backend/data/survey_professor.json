@@ -1,0 +1,97 @@
+{
+  "survey_id": "ask_alma_professor_v1",
+  "title": "Ask Alma - Professorenevaluation",
+  "description": "Bitte bewerten Sie den Einsatz von Ask Alma in Ihrer Lehre.",
+  "questions": [
+    {
+      "id": "p1",
+      "type": "multiple_choice",
+      "label": "1. Wie bewerten Sie den Nutzen von Ask Alma in Ihren Lehrveranstaltungen?",
+      "options": [
+        { "value": "sehr_hoch", "text": "Sehr hoher Nutzen" },
+        { "value": "moderat", "text": "Moderater Nutzen" },
+        { "value": "kein_nutzen", "text": "Kein merklicher Nutzen" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p2",
+      "type": "multiple_choice",
+      "label": "2. Entlastet Ask Alma Sie bei der Beantwortung von Standardfragen?",
+      "options": [
+        { "value": "stark_entlastet", "text": "Ja, stark entlastet" },
+        { "value": "teilweise_entlastet", "text": "Ja, teilweise" },
+        { "value": "kaum_entlastet", "text": "Nein, kaum" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p3",
+      "type": "text",
+      "label": "3. Welche Verwaltungsfunktionen fehlen Ihnen im System?",
+      "required": false
+    },
+    {
+      "id": "p4",
+      "type": "multiple_choice",
+      "label": "4. Wie schätzen Sie die fachliche Korrektheit der Antworten ein?",
+      "options": [
+        { "value": "immer_korrekt", "text": "Stets korrekt" },
+        { "value": "meistens_korrekt", "text": "Meistens korrekt" },
+        { "value": "oft_fehlerhaft", "text": "Oft fehlerhaft" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p5",
+      "type": "multiple_choice",
+      "label": "5. Werden Sie das Tool auch im nächsten Semester einsetzen?",
+      "options": [
+        { "value": "ja", "text": "Ja, auf jeden Fall" },
+        { "value": "vielleicht", "text": "Eventuell" },
+        { "value": "nein", "text": "Wahrscheinlich nicht" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p6",
+      "type": "text",
+      "label": "6. Wie integrieren Sie Ask Alma aktuell in Ihre Lehrinhalte?",
+      "required": true
+    },
+    {
+      "id": "p7",
+      "type": "multiple_choice",
+      "label": "7. Wie schätzen Sie die Akzeptanz bei den Studierenden ein?",
+      "options": [
+        { "value": "hoch", "text": "Sehr hohe Akzeptanz" },
+        { "value": "mittel", "text": "Mittlere Akzeptanz" },
+        { "value": "gering", "text": "Geringe Akzeptanz" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p8",
+      "type": "text",
+      "label": "8. Welche neuen Use-Cases sehen Sie für die Zukunft?",
+      "required": false
+    },
+    {
+      "id": "p9",
+      "type": "multiple_choice",
+      "label": "9. Benötigen Sie mehr Analysetools für das Nutzerverhalten?",
+      "options": [
+        { "value": "dringend", "text": "Ja, dringend" },
+        { "value": "waere_gut", "text": "Wäre ein nettes Feature" },
+        { "value": "nein", "text": "Nein, nicht nötig" }
+      ],
+      "required": true
+    },
+    {
+      "id": "p10",
+      "type": "text",
+      "label": "10. Zusätzliches Feedback oder Bemerkungen?",
+      "required": false
+    }
+  ]
+}

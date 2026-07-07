@@ -33,6 +33,11 @@ Aufgrund des Modulkontexts muss das System zwingend verteilte Architekturprinzip
 ## 7. API-Schnittstellen (Frontend <-> Backend)
 Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend (Antigravity) konsumiert werden.
 
+**Sicherheitsvorgabe (JWT-Token):**
+- **Öffentliche Endpunkte (kein Token nötig):** `GET /api/health`, `POST /api/login`, `GET /api/survey`, `POST /api/results`.
+- **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich, nur Rolle `admin`):** `POST /api/survey/questions`, `DELETE /api/survey/questions/<id>`, `GET /api/results`.
+- Wird ein geschützter Endpunkt ohne oder mit ungültigem Token aufgerufen, muss das Backend mit `401 Unauthorized` antworten.
+
 ### 7.0 GET `/api/health`
 - **Beschreibung:** Liefert einen einfachen Betriebsstatus des Backends, damit Frontend und Entwicklung prüfen können, ob der Server erreichbar ist.
 - **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
@@ -45,9 +50,33 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   ```
 - **Statuscode:** `200 OK` bei erreichbarem Backend.
 
+### 7.0.1 POST `/api/login`
+- **Beschreibung:** Authentifiziert einen Benutzer. Aktuell ist nur die Admin-Rolle loginpflichtig.
+- **Erwarteter Payload (JSON):**
+  ```json
+  {
+    "username": "...",
+    "password": "..."
+  }
+  ```
+- **Test-Credentials (für Entwicklung):** Das Backend muss mindestens folgende Testbenutzer akzeptieren:
+  - `admin` / `admin123` (Rolle: `admin`)
+- **Erwartete Antwort:** Status `200 OK` mit JWT Token und der zugewiesenen Rolle.
+  ```json
+  {
+    "token": "jwt_token_xyz",
+    "role": "admin"
+  }
+  ```
+- **Fehlerantwort:** Status `401 Unauthorized`, wenn Login fehlschlägt.
+
 ### 7.1 GET `/api/survey`
-- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend.
-- **Erwartete Anfrage:** Keine Query-Parameter, kein Request-Body.
+- **Beschreibung:** Liefert die Struktur und Fragen der Umfrage an das Frontend. **Kein Token erforderlich.**
+- **Erwartete Anfrage:** Query-Parameter `?role=student|professor`. Das Backend **muss** je nach Rolle einen **unterschiedlichen Fragenkatalog** ausliefern. Kein Request-Body.
+- **Rollenbasierte Datendateien:** Das Backend lädt die Fragen aus getrennten JSON-Dateien:
+  - `backend/data/survey_student.json` → wird bei `?role=student` ausgeliefert.
+  - `backend/data/survey_professor.json` → wird bei `?role=professor` ausgeliefert.
+  - Fehlt der Parameter `role`, wird standardmäßig `survey_student.json` geladen.
 - **Erwartete Antwort (JSON):**
   ```json
   {
@@ -95,7 +124,7 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   - `answers` muss ein JSON-Objekt sein, dessen Keys den Frage-IDs aus `GET /api/survey` entsprechen.
   - Pflichtfragen (`required: true`) müssen eine nicht-leere Antwort enthalten.
   - Antworten auf `multiple_choice`-Fragen müssen exakt einem `value` der jeweiligen `options` entsprechen.
-- **Erwartete Erfolgsantwort:** Status `201 Created` bei erfolgreicher Speicherung.
+- **Erwartete Antwort:** Status `201 Created` bei erfolgreicher Speicherung.
   ```json
   {
     "status": "created",
@@ -110,16 +139,46 @@ Diese Schnittstellen müssen vom Backend (Codex) bereitgestellt und vom Frontend
   }
   ```
 
-## 8. Abhängigkeiten (Backend)
-Hinweis (übernommen aus `backend/requirements.txt`): Keine externen Python-Pakete erforderlich. Das Backend nutzt nur die Python-Standardbibliothek.
+### 7.3 POST `/api/survey/questions`
+- **Rollenbezug:** Optionaler Query-Parameter `?role=student|professor`; ohne Parameter wird `student` verwendet.
+- **Beschreibung:** Fügt der Umfrage eine neue Frage hinzu.
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
+- **Erwarteter Payload (JSON):** Ein einzelnes Frage-Objekt (ähnlich der Objekte in `GET /api/survey`).
+- **Erwartete Antwort:** Status `201 Created`.
 
-Für den Betrieb des Backends werden keine externen Python-Pakete benötigt. Der Server nutzt ausschließlich die Python-Standardbibliothek:
+### 7.4 DELETE `/api/survey/questions/<id>`
+- **Rollenbezug:** Optionaler Query-Parameter `?role=student|professor`; ohne Parameter wird `student` verwendet.
+- **Beschreibung:** Löscht eine bestehende Frage anhand ihrer ID.
+- **Zugriffsbeschränkung:** Nur für Rolle `admin`. Erfordert gültiges JWT-Token im Header. Bei fehlendem oder ungültigem Token → `401 Unauthorized`. Bei gültigem Token, aber falscher Rolle → `403 Forbidden`.
+- **Erwartete Antwort:** Status `200 OK` (oder `204 No Content`).
+
+### 7.5 GET `/api/results`
+- **Zugriffsbeschraenkung:** Nur fuer Rolle `admin`. Erfordert gueltiges JWT-Token im Header.
+- **Beschreibung:** Liefert alle bisher gespeicherten Umfrage-Antworten. (Wird im Admin-Dashboard genutzt)
+- **Erwartete Antwort (JSON):** Array von Ergebnis-Objekten.
+  ```json
+  [
+    {
+      "result_id": "uuid",
+      "received_at": "2026-06-12T10:45:00Z",
+      "survey_id": "ask_alma_eval_v1",
+      "answers": {
+        "q1": "Antworttext...",
+        "q2": "sehr_nuetzlich"
+      }
+    }
+  ]
+  ```
+
+## 8. Abhängigkeiten (Backend)
+Für die Auswertung der gespeicherten Umfrageergebnisse muss die Python-Bibliothek `pandas` verwendet werden. Die installierbaren Projektabhängigkeiten werden zentral in `requirements.txt` gepflegt:
 ```text
 Python >= 3.10
+pandas>=2.2,<3.0
 ```
 
 ## 9. Abhängigkeiten (Frontend)
-Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt:
+Die folgenden Python-Pakete werden für den Betrieb des Frontends benötigt und sind ebenfalls in `requirements.txt` enthalten:
 ```text
 Flask==3.0.3
 requests==2.31.0

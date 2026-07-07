@@ -21,6 +21,8 @@ Keine destruktiven Überschreibungen: Wenn du die Datenstruktur oder die Renderi
 
 Schnittstellen-Dokumentation: Wenn eine neue Schnittstelle (z. B. eine neue Route oder ein Datenübergabepunkt) angelegt oder benötigt wird, muss dies zwingend als neuer Punkt in der requirements.md dokumentiert werden. Dabei muss klar definiert werden, welche Daten in welcher Form (z. B. Datenstruktur, Parameter, Datentypen) übergeben werden und was als Antwort erwartet bzw. empfangen wird. Dadurch weiß der andere Agent exakt, worauf er zugreifen oder was er erstellen muss.
 
+Automatische Synchronisation der requirements.md: Jede Änderung an der Architektur, an API-Endpunkten, an Rollen/Berechtigungen, an Datendateien oder an Sicherheitsregeln (z. B. welche Routen ein Token erfordern) muss **sofort und ohne Rückfrage** in der `requirements.md` nachgepflegt werden – noch bevor oder zeitgleich mit der eigentlichen Code-Änderung. Dies gilt für beide Agenten (Antigravity und Codex). Ziel ist, dass die `requirements.md` jederzeit den vollständigen und aktuellen Stand aller Schnittstellen, Rollen, Dateipfade, Test-Credentials und Zugriffsregeln widerspiegelt, sodass der jeweils andere Agent ohne zusätzliche Rückfragen arbeiten kann.
+
 Deutsche Kommentare: Alle Code-Kommentare, Erklärungen und Dokumentationen innerhalb des Quellcodes müssen zwingend auf Deutsch verfasst werden.
 
 4. Git- & Commit-Standards
