@@ -9,3 +9,13 @@ result_id;timestamp;survey_id;question_id;answer
 3b6623a6-b53a-48f8-abd5-cc1b01e5ac38;2026-07-06T12:09:36.909738Z;ask_alma_professor_v1;p7;gering
 3b6623a6-b53a-48f8-abd5-cc1b01e5ac38;2026-07-06T12:09:36.909738Z;ask_alma_professor_v1;p8;sdfgsg
 3b6623a6-b53a-48f8-abd5-cc1b01e5ac38;2026-07-06T12:09:36.909738Z;ask_alma_professor_v1;p9;nein
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q1;opt2_moderater_nutzen
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q10;
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q2;opt2_ja__teilweise
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q3;
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q4;opt1_stets_korrekt
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q5;opt2_eventuell
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q6;gar nicht
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q7;opt1_sehr_hohe_akzeptanz
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q8;
+c05ac992-7f60-4e80-b0f9-4c81501a6cc1;2026-07-08T14:08:28.058914Z;ask_alma_professor_v1;q9;opt2_w_re_ein_nettes_feat

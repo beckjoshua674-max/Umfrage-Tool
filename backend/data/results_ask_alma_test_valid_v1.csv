@@ -1,0 +1,4 @@
+result_id;timestamp;survey_id;question_id;answer
+438f108e-b62f-4821-8d72-6c05fcf13836;2026-07-08T13:56:32.519048Z;ask_alma_test_valid_v1;q1;ja
+438f108e-b62f-4821-8d72-6c05fcf13836;2026-07-08T13:56:32.519048Z;ask_alma_test_valid_v1;q2;ja
+438f108e-b62f-4821-8d72-6c05fcf13836;2026-07-08T13:56:32.519048Z;ask_alma_test_valid_v1;q3;5

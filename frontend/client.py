@@ -245,8 +245,9 @@ def berechne_statistiken(umfragen, ergebnisse):
 
 @app.route('/', methods=['GET'])
 def index():
-    """Startseite: Rollenauswahl (Admin, Professor, Student)."""
-    return render_template('role_select.html')
+    """Startseite: Rollenauswahl und Liste der verfügbaren Umfragen."""
+    umfragen = lade_alle_umfragen_lokal()
+    return render_template('role_select.html', umfragen=umfragen)
 
 @app.route('/survey', methods=['GET'])
 def survey():
@@ -258,7 +259,8 @@ def survey():
     Manipulation einen noch nicht erreichten Schritt aufzurufen, wird er
     automatisch auf seinen korrekten Schritt zurückgeleitet (HTTP 302).
     """
-    role = request.args.get('role', 'student')
+    role = 'student'
+    survey_id = request.args.get('survey_id', '')
     angefragter_step = request.args.get('step', 0, type=int)
 
     # -------------------------------------------------------
@@ -276,33 +278,36 @@ def survey():
     # -------------------------------------------------------
     # Umfragedaten laden und in Session cachen
     # -------------------------------------------------------
-    if 'survey_data' not in session or session.get('survey_role') != role:
+    if 'survey_data' not in session or (survey_id and session.get('survey_version_id') != survey_id):
         try:
+            url = f"{BACKEND_API_URL}/survey"
+            if survey_id:
+                url += f"?survey_id={survey_id}"
             response = requests.get(
-                f"{BACKEND_API_URL}/survey?role={role}",
+                url,
                 headers=get_auth_headers()
             )
             if response.status_code == 401:
                 session.clear()
                 flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
-                return redirect(url_for('login_page', role=role))
+                return redirect(url_for('login_page', role='admin'))
             response.raise_for_status()
             survey_data = response.json()
 
             # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
             session['survey_data']       = survey_data
-            session['survey_role']       = role
+            session['survey_role']       = 'student'
             session['survey_version_id'] = survey_data.get('survey_id', '')
             session['survey_answers']    = {}
             session['survey_max_step']   = 0  # Maximal erreichter Schritt
         except Exception as e:
             print(f"Fehler beim Abrufen der Umfrage: {e}")
-            return render_template('index.html', survey=None, role=role,
+            return render_template('index.html', survey=None, role='student',
                                    question=None, step=0, total=0, fehler=None)
 
     survey_data = session.get('survey_data')
     if not survey_data:
-        return render_template('index.html', survey=None, role=role,
+        return render_template('index.html', survey=None, role='student',
                                question=None, step=0, total=0, fehler=None)
 
     # -------------------------------------------------------
@@ -551,21 +556,15 @@ def lade_alle_umfragen_lokal():
     Dient als zuverlässiger Fallback, wenn der Backend-API-Endpunkt noch nicht implementiert ist."""
     import json as json_mod
     umfragen = []
-    bekannte_rollen = [
-        ("student", "survey_student.json"),
-        ("professor", "survey_professor.json"),
-    ]
-    for rolle, dateiname in bekannte_rollen:
-        pfad = BACKEND_DATEN_PFAD / dateiname
-        if pfad.exists():
+    if BACKEND_DATEN_PFAD.exists():
+        for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
             try:
                 with open(pfad, "r", encoding="utf-8") as f:
                     daten = json_mod.load(f)
-                    daten["_rolle"] = rolle       # Interne Rolle für die Anzeige ergänzen
-                    daten["_datei"] = dateiname   # Dateiname für Debugging-Zwecke
+                    daten["_datei"] = pfad.name
                     umfragen.append(daten)
             except Exception as e:
-                print(f"Warnung: Konnte {dateiname} nicht laden: {e}")
+                print(f"Warnung: Konnte {pfad.name} nicht laden: {e}")
     return umfragen
 
 def lade_ergebnisse():
@@ -715,20 +714,15 @@ def admin_results_export():
 def api_get_survey():
     """Proxy-Route zum Laden der JSON-Struktur einer Umfrage."""
     import json as json_mod
-    role = request.args.get('role', 'student')
     survey_id = request.args.get('survey_id', '')
-
-    # Wenn survey_id übergeben wurde, bestimmen wir die Rolle
-    if survey_id:
-        if 'student' in survey_id.lower():
-            role = 'student'
-        elif 'professor' in survey_id.lower():
-            role = 'professor'
 
     # Vom Backend abrufen
     try:
+        url = f"{BACKEND_API_URL}/survey"
+        if survey_id:
+            url += f"?survey_id={survey_id}"
         response = requests.get(
-            f"{BACKEND_API_URL}/survey?role={role}",
+            url,
             headers=get_auth_headers(),
             timeout=2
         )
@@ -742,9 +736,27 @@ def api_get_survey():
 
     # Lokaler Fallback
     try:
-        dateiname = f"survey_{role}.json"
-        with open(BACKEND_DATEN_PFAD / dateiname, "r", encoding="utf-8") as f:
-            return f.read(), 200, {"Content-Type": "application/json; charset=utf-8"}
+        if survey_id:
+            for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
+                try:
+                    with open(pfad, "r", encoding="utf-8") as f:
+                        daten = json_mod.load(f)
+                        if daten.get("survey_id") == survey_id:
+                            return json_mod.dumps(daten), 200, {"Content-Type": "application/json; charset=utf-8"}
+                except Exception:
+                    continue
+        for name in ("survey_student.json", "survey_professor.json"):
+            pfad = BACKEND_DATEN_PFAD / name
+            if pfad.exists():
+                with open(pfad, "r", encoding="utf-8") as f:
+                    return f.read(), 200, {"Content-Type": "application/json; charset=utf-8"}
+        for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
+            try:
+                with open(pfad, "r", encoding="utf-8") as f:
+                    return f.read(), 200, {"Content-Type": "application/json; charset=utf-8"}
+            except Exception:
+                continue
+        return json_mod.dumps({"status": "error", "message": "Keine Umfragen gefunden"}), 404, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
         return json_mod.dumps({"status": "error", "message": str(e)}), 500, {"Content-Type": "application/json; charset=utf-8"}
 
@@ -759,11 +771,11 @@ def survey_save_local():
     if not nutzlast:
         return json_mod.dumps({"status": "error", "message": "Kein gültiger JSON-Body empfangen."}), 400, {"Content-Type": "application/json; charset=utf-8"}
 
-    rolle = nutzlast.get("role", "")
-    if rolle not in ["student", "professor"]:
-        return json_mod.dumps({"status": "error", "message": "Feld 'role' muss 'student' oder 'professor' sein."}), 400, {"Content-Type": "application/json; charset=utf-8"}
-
-    dateiname = f"survey_{rolle}.json"
+    survey_id = nutzlast.get("survey_id", "")
+    if not survey_id:
+        return json_mod.dumps({"status": "error", "message": "Feld 'survey_id' fehlt."}), 400, {"Content-Type": "application/json; charset=utf-8"}
+    sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
+    dateiname = f"survey_{sichere_id}.json"
     ziel_pfad = BACKEND_DATEN_PFAD / dateiname
 
     # Versuch 1: Echten Backend-Endpunkt POST /api/surveys nutzen
@@ -774,13 +786,16 @@ def survey_save_local():
             headers={**get_auth_headers(), "Content-Type": "application/json"},
             timeout=2
         )
-        # Wenn Token abgelaufen (401), Session verwerfen und an Login weiterleiten
         if antwort.status_code == 401:
             session.clear()
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte neu anmelden."}), 401, {"Content-Type": "application/json; charset=utf-8"}
-        if antwort.ok:
-            return antwort.text, antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception:
+        # Wenn der Server antwortet (egal ob Erfolg oder Fehler), geben wir die Antwort zurück
+        return antwort.text, antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
+    except requests.exceptions.ConnectionError:
+        # Nur bei echten Verbindungsproblemen (z.B. Backend offline) weichen wir auf lokales Speichern aus
+        pass
+    except Exception as e:
+        print(f"Backend POST error: {e}")
         pass
 
     # Versuch 2: Direkt ins Dateisystem schreiben (Entwicklungsmodus)
@@ -817,8 +832,8 @@ def survey_delete(survey_id):
         pass
 
     # Versuch 2: Direkt aus dem Dateisystem löschen (Entwicklungsmodus Fallback)
-    rolle = "student" if "student" in survey_id.lower() else "professor"
-    dateiname = f"survey_{rolle}.json"
+    sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
+    dateiname = f"survey_{sichere_id}.json"
     ziel_pfad = BACKEND_DATEN_PFAD / dateiname
     try:
         if ziel_pfad.exists():

@@ -1,0 +1,32 @@
+{
+  "survey_id": "ask_alma_test_valid_v1",
+  "title": "Ask Alma - Gültiger Test-Import",
+  "role": "student",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "text",
+      "label": "Können Sie die Import-Funktion erfolgreich testen?",
+      "required": true
+    },
+    {
+      "id": "q2",
+      "type": "single_choice",
+      "label": "Funktioniert das eckige Klick-Kästchen mit dem X?",
+      "required": true,
+      "options": [
+        { "value": "ja", "text": "Ja, absolut" },
+        { "value": "nein", "text": "Nein, es gibt Fehler" }
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "rating",
+      "subtype": "slider",
+      "scale_min_label": "Sehr häufig",
+      "scale_max_label": "Sehr selten",
+      "label": "Wie oft nutzen Sie solche Testfunktionen?",
+      "required": false
+    }
+  ]
+}

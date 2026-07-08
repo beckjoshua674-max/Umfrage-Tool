@@ -66,6 +66,9 @@ Die Definition einer Umfrage wird im JSON-Format übertragen und enthält Metada
     {
       "id": "q4",
       "type": "rating",
+      "subtype": "boxes",
+      "scale_min_label": "Sehr gut",
+      "scale_max_label": "Ungenügend",
       "label": "Geben Sie eine Gesamtbewertung ab (1 bis 5 Sterne):",
       "required": true
     }
@@ -94,15 +97,17 @@ Die Antworten werden als JSON-Objekt übertragen.
 ## 3. Client-Spezifikationen und State Management
 
 ### 3.1 Dynamisches UI-Rendering
-Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelivered JSON-Objekts.
+Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelieferten JSON-Objekts.
 * **Typ `text`**: Generierung einer HTML-Textarea.
 * **Typ `single_choice`**: Generierung von Radio-Buttons, die im Frontend als eckige Kästchen gerendert werden.
   * **Erzwingung der Single-Choice-Logik:** Das System stellt auf Clientseite strikt sicher, dass zu jedem Zeitpunkt maximal eine Option der Frage ausgewählt sein kann. Das Markieren einer anderen Option deselektiert die vorherige automatisch. Die Javascript-Logik wird separat pro Formular/Frage isoliert (z. B. durch Iteration über das jeweilige Formular/Frage-Container), sodass das Klicken einer Option nur Elemente derselben Frage deselektiert. Im finalen Antwort-Payload an den Server wird ein einzelner String-Wert übergeben.
 * **Typ `multiple_choice`**: Generierung von Checkboxen, die im Frontend ebenfalls als eckige Kästchen gerendert werden.
-* **Typ `rating`**: Generierung einer horizontalen Reihe aus 5 eckigen Boxen (Zahlen 1 bis 5).
-  * **Aktiv-Markierung & visuelles Feedback:** Sobald der Nutzer eine Zahl anklickt, wird die entsprechende Box sofort als aktiv markiert (durch farbliches Füllen der Box und weiße Textfarbe der Zahl). Alle anderen Zahlenboxen dieser Frage werden deselektiert.
-  * **Orientierungshilfe (Legende):** Direkt über der Zahlenreihe (1 bis 5) wird eine verständliche Beschriftung als Legende eingeblendet, die die Pole der Skala definiert („Skala: 1 = Sehr gut, 5 = Ungenügend“).
-* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definierted Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
+* **Typ `rating`**: Generierung einer Bewertungsskala (Zahlen 1 bis 5).
+  * **Darstellungs-Subtypen:**
+    - `boxes` (Standard): Eine horizontale Reihe aus 5 eckigen Boxen (Zahlen 1 bis 5). Bei Auswahl einer Box wird diese farblich gefüllt und die Zahl in weißer Textfarbe dargestellt, damit diese gut lesbar bleibt.
+    - `slider`: Ein horizontaler Schieberegler (Range-Slider) von 1 bis 5 mit einer Echtzeit-Anzeige des aktuell ausgewählten Werts darunter.
+  * **Einstellbare Skalen-Beschriftung (Legende):** Die Beschriftung für den minimalen (Wert 1) und maximalen (Wert 5) Skalenendpunkt (z. B. "Sehr gut" / "Ungenügend" oder "Sehr häufig" / "Sehr selten") ist frei im Editor konfigurierbar und wird dynamisch als Legende über bzw. bei der Skala eingeblendet.
+* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definiertes Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
 
 ### 3.2 Client-Zustandsmanagement (States)
 Der Client durchläuft folgende Phasen:
@@ -146,7 +151,7 @@ Schlägt eine Validierung fehl, wird die Speicherung verweigert (kein Schreibzug
 
 ### 5.1 Bereich Ergebnisse anzeigen
 Die Darstellung im Tab "Ergebnisse anzeigen" erfolgt in folgender hierarchischer Reihenfolge:
-* **Sektion 1 (Oben - Priorität 1):** Die aggregierte Auswertung mit dem Titel "Auswertung" (ohne technische Beschreibungstexte bezüglich der serverseitigen Berechnung). Direkt neben der Überschrift befindet sich ein Dropdown-Auswahlmenü (Filter), mit dem der Administrator Statistiken und Balkendiagramme der Antworthäufigkeiten nach einer spezifischen Umfrage filtern kann. Bei Auswahl einer Umfrage aktualisieren sich die Daten sofort. Ein Button "CSV exportieren" ist in dieser Sektion platziert, um den Export der aggregierten Daten zu ermöglichen.
+* **Sektion 1 (Oben - Priorität 1):** Die aggregierte Auswertung mit dem Titel "Auswertung" (ohne technische Beschreibungstexte bezüglich der serverseitigen Berechnung). Direkt neben der Überschrift befindet sich ein Dropdown-Auswahlmenü (Filter), mit dem der Administrator Statistiken und Balkendiagramme der Antworthäufigkeiten nach einer spezifischen Umfrage filtern kann. Bei Auswahl einer Umfrage aktualisieren sich die Daten sofort. Ein Button "CSV exportieren" is in dieser Sektion platziert, um den Export der aggregierten Daten zu ermöglichen.
 * **Sektion 2 (Unten - Priorität 2):** Darunter folgt die Sektion für die einzelnen, eingegangenen Rohdaten aus der CSV-Datei.
 * **Button-Platzierung in Sektion 2:** Der zweite "CSV exportieren"-Button für den Rohdaten-Export befindet sich auf Höhe der Überschrift dieser zweiten Sektion ("Eingegangene Ergebnisse"), rechts neben der Überschrift angeordnet. Darunter folgt die chronologische Tabelle der Einzeldaten.
 

@@ -2,93 +2,148 @@
   "survey_id": "ask_alma_professor_v1",
   "title": "Ask Alma - Professorenevaluation",
   "description": "Bitte bewerten Sie den Einsatz von Ask Alma in Ihrer Lehre.",
+  "role": "professor",
   "questions": [
     {
-      "id": "p1",
+      "id": "q1",
       "type": "multiple_choice",
       "label": "1. Wie bewerten Sie den Nutzen von Ask Alma in Ihren Lehrveranstaltungen?",
+      "required": true,
       "options": [
-        { "value": "sehr_hoch", "text": "Sehr hoher Nutzen" },
-        { "value": "moderat", "text": "Moderater Nutzen" },
-        { "value": "kein_nutzen", "text": "Kein merklicher Nutzen" }
-      ],
-      "required": true
+        {
+          "value": "opt1_sehr_hoher_nutzen",
+          "text": "Sehr hoher Nutzen"
+        },
+        {
+          "value": "opt2_moderater_nutzen",
+          "text": "Moderater Nutzen"
+        },
+        {
+          "value": "opt3_kein_merklicher_nutz",
+          "text": "Kein merklicher Nutzen"
+        }
+      ]
     },
     {
-      "id": "p2",
+      "id": "q2",
       "type": "multiple_choice",
       "label": "2. Entlastet Ask Alma Sie bei der Beantwortung von Standardfragen?",
+      "required": true,
       "options": [
-        { "value": "stark_entlastet", "text": "Ja, stark entlastet" },
-        { "value": "teilweise_entlastet", "text": "Ja, teilweise" },
-        { "value": "kaum_entlastet", "text": "Nein, kaum" }
-      ],
-      "required": true
+        {
+          "value": "opt1_ja__stark_entlastet",
+          "text": "Ja, stark entlastet"
+        },
+        {
+          "value": "opt2_ja__teilweise",
+          "text": "Ja, teilweise"
+        },
+        {
+          "value": "opt3_nein__kaum",
+          "text": "Nein, kaum"
+        }
+      ]
     },
     {
-      "id": "p3",
+      "id": "q3",
       "type": "text",
       "label": "3. Welche Verwaltungsfunktionen fehlen Ihnen im System?",
       "required": false
     },
     {
-      "id": "p4",
+      "id": "q4",
       "type": "multiple_choice",
       "label": "4. Wie schätzen Sie die fachliche Korrektheit der Antworten ein?",
+      "required": true,
       "options": [
-        { "value": "immer_korrekt", "text": "Stets korrekt" },
-        { "value": "meistens_korrekt", "text": "Meistens korrekt" },
-        { "value": "oft_fehlerhaft", "text": "Oft fehlerhaft" }
-      ],
-      "required": true
+        {
+          "value": "opt1_stets_korrekt",
+          "text": "Stets korrekt"
+        },
+        {
+          "value": "opt2_meistens_korrekt",
+          "text": "Meistens korrekt"
+        },
+        {
+          "value": "opt3_oft_fehlerhaft",
+          "text": "Oft fehlerhaft"
+        }
+      ]
     },
     {
-      "id": "p5",
+      "id": "q5",
       "type": "multiple_choice",
       "label": "5. Werden Sie das Tool auch im nächsten Semester einsetzen?",
+      "required": true,
       "options": [
-        { "value": "ja", "text": "Ja, auf jeden Fall" },
-        { "value": "vielleicht", "text": "Eventuell" },
-        { "value": "nein", "text": "Wahrscheinlich nicht" }
-      ],
-      "required": true
+        {
+          "value": "opt1_ja__auf_jeden_fall",
+          "text": "Ja, auf jeden Fall"
+        },
+        {
+          "value": "opt2_eventuell",
+          "text": "Eventuell"
+        },
+        {
+          "value": "opt3_wahrscheinlich_nicht",
+          "text": "Wahrscheinlich nicht"
+        }
+      ]
     },
     {
-      "id": "p6",
+      "id": "q6",
       "type": "text",
       "label": "6. Wie integrieren Sie Ask Alma aktuell in Ihre Lehrinhalte?",
       "required": true
     },
     {
-      "id": "p7",
+      "id": "q7",
       "type": "multiple_choice",
       "label": "7. Wie schätzen Sie die Akzeptanz bei den Studierenden ein?",
+      "required": true,
       "options": [
-        { "value": "hoch", "text": "Sehr hohe Akzeptanz" },
-        { "value": "mittel", "text": "Mittlere Akzeptanz" },
-        { "value": "gering", "text": "Geringe Akzeptanz" }
-      ],
-      "required": true
+        {
+          "value": "opt1_sehr_hohe_akzeptanz",
+          "text": "Sehr hohe Akzeptanz"
+        },
+        {
+          "value": "opt2_mittlere_akzeptanz",
+          "text": "Mittlere Akzeptanz"
+        },
+        {
+          "value": "opt3_geringe_akzeptanz",
+          "text": "Geringe Akzeptanz"
+        }
+      ]
     },
     {
-      "id": "p8",
+      "id": "q8",
       "type": "text",
       "label": "8. Welche neuen Use-Cases sehen Sie für die Zukunft?",
       "required": false
     },
     {
-      "id": "p9",
+      "id": "q9",
       "type": "multiple_choice",
       "label": "9. Benötigen Sie mehr Analysetools für das Nutzerverhalten?",
+      "required": true,
       "options": [
-        { "value": "dringend", "text": "Ja, dringend" },
-        { "value": "waere_gut", "text": "Wäre ein nettes Feature" },
-        { "value": "nein", "text": "Nein, nicht nötig" }
-      ],
-      "required": true
+        {
+          "value": "opt1_ja__dringend",
+          "text": "Ja, dringend"
+        },
+        {
+          "value": "opt2_w_re_ein_nettes_feat",
+          "text": "Wäre ein nettes Feature"
+        },
+        {
+          "value": "opt3_nein__nicht_n_tig",
+          "text": "Nein, nicht nötig"
+        }
+      ]
     },
     {
-      "id": "p10",
+      "id": "q10",
       "type": "text",
       "label": "10. Zusätzliches Feedback oder Bemerkungen?",
       "required": false

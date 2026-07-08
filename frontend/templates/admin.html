@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Ask Alma - Admin Dashboard{% endblock %}
 {% block header_title %}Admin Dashboard{% endblock %}
@@ -249,6 +249,10 @@
                 <p style="margin: 0 0 12px; color: var(--color-text-light); font-size: 0.85rem; line-height: 1.4;">
                     Laden Sie eine lokal gespeicherte JSON-Datei hoch, um eine fertige Umfragestruktur direkt zu importieren und zu speichern.
                 </p>
+                <div style="margin-bottom: 12px;">
+                    <label class="form-label" style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">Name für die importierte Umfrage (optional):</label>
+                    <input type="text" id="import-titel-input" class="form-control" placeholder="Z. B. Studentenbefragung Wintersemester (überschreibt den Namen aus der Datei)" style="max-width: 500px; font-size: 0.9rem;">
+                </div>
                 <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
                     <input type="file" id="import-datei-input" accept=".json" style="font-size: 0.9rem;">
                     <button class="btn-primary" onclick="importiereUmfrage()" style="padding: 6px 16px; font-size: 0.85rem;">Importieren & Speichern</button>
@@ -258,17 +262,10 @@
             <!-- Umfrage-Metadaten -->
             <div class="erstellen-meta">
                 <div class="form-row">
-                    <div class="form-group" style="flex: 2;">
+                    <div class="form-group" style="flex: 1;">
                         <label class="form-label">Titel der Umfrage *</label>
                         <input type="text" id="neu-titel" class="form-control"
-                               placeholder="z.B. Ask Alma â€“ Wintersemester 2026" required>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Zielgruppe *</label>
-                        <select id="neu-rolle" class="form-control">
-                            <option value="student">Studierende</option>
-                            <option value="professor">Professorinnen & Professoren</option>
-                        </select>
+                               placeholder="z.B. Studentenbefragung Wintersemester" required>
                     </div>
                 </div>
                 <div class="form-group">
@@ -475,26 +472,41 @@
     }
 
     function ladeUmfrageInEditor(umfrage) {
-        // Titel setzen
+        var rolle = umfrage.role || umfrage._rolle || 'student';
         document.getElementById('bearbeiten-titel').textContent = umfrage.title;
 
         var inhalt = document.getElementById('bearbeiten-inhalt');
 
-        var html = '<div class="builder-status builder-status-erfolg" style="margin-bottom:16px;">'
-                 + 'Umfrage geladen: <strong>' + escapeHtml(umfrage.title) + '</strong>'
-                 + ' <span class="badge badge-secondary" style="margin-left:8px;">' + escapeHtml(umfrage._rolle) + '</span>'
-                 + '</div>';
+        var html = '<div id="bearbeiten-status" class="builder-status" style="display:none;"></div>';
+        
+        // Globale Umfrage-Einstellungen zum Bearbeiten
+        html += '<div class="frage-karte" style="margin-bottom: 20px; padding: 15px; border: 1.5px solid var(--color-hs-kehl); border-radius: 4px; background: rgba(0, 74, 150, 0.02);">';
+        html += '<h3 style="margin-top:0; color: var(--color-hs-kehl); font-size: 1.05rem; border-bottom: 1.5px solid var(--color-hs-kehl); padding-bottom: 5px; font-weight:600;">Allgemeine Einstellungen</h3>';
+        
+        html += '<div style="margin-bottom: 12px;">';
+        html += '<label class="form-label" style="font-weight:600; display:block; margin-bottom: 4px; font-size:0.9rem;">Titel der Umfrage:</label>';
+        html += '<input type="text" class="form-control" id="bearbeiten-input-titel" value="' + escapeHtml(umfrage.title || '') + '" placeholder="z. B. Evaluation für Studierende" style="width:100%;">';
+        html += '</div>';
 
-        html += '<div id="bearbeiten-status" class="builder-status" style="display:none;"></div>';
+        html += '<div style="margin-bottom: 12px;">';
+        html += '<label class="form-label" style="font-weight:600; display:block; margin-bottom: 4px; font-size:0.9rem;">Beschreibung (Start-Text):</label>';
+        html += '<textarea class="form-control" id="bearbeiten-input-beschreibung" rows="3" placeholder="Dieser Text wird Teilnehmern vor Beginn angezeigt..." style="width:100%; resize:vertical; font-family:inherit;">' + escapeHtml(umfrage.description || '') + '</textarea>';
+        html += '</div>';
+
+
+        
+        html += '</div>';
+
+        html += '<h3 style="margin-bottom: 10px; font-size: 1.05rem; color: var(--color-hs-kehl); font-weight:600;">Fragen</h3>';
         html += '<div id="bearbeiten-fragen">';
 
         (umfrage.questions || []).forEach(function(frage, i) {
-            html += renderFrageBearbeiten(frage, i, umfrage._rolle, umfrage);
+            html += renderFrageBearbeiten(frage, i, rolle, umfrage);
         });
 
         html += '</div>';
         html += '<div style="margin-top:20px; display:flex; gap:10px;">'
-             + '<button class="btn-primary" onclick="umfrageAktualisieren(\'' + escapeHtml(umfrage._rolle) + '\', \'' + escapeHtml(umfrage.survey_id) + '\', \'' + escapeHtml(umfrage.title) + '\')">'
+             + '<button class="btn-primary" onclick="umfrageAktualisieren(\'' + escapeHtml(umfrage.survey_id) + '\')">'
              + 'Änderungen speichern</button>'
              + '<button class="btn-danger" style="background-color: var(--color-danger); border-color: var(--color-danger); color: white;" onclick="umfrageLoeschen(\'' + escapeHtml(umfrage.survey_id) + '\')">'
              + 'Umfrage löschen</button>'
@@ -509,13 +521,14 @@
         html += '<div class="frage-karte-kopf">';
         html += '<span class="frage-nr">Frage ' + (index + 1) + '</span>';
         html += '<select class="form-control" style="width:auto;" onchange="frageTypGeaendertBearbeiten(' + index + ', this.value, \'' + escapeHtml(JSON.stringify(umfrage)) + '\')">';
-        var typen = [{v:'text',l:'Freitext'},{v:'single_choice',l:'Einzelauswahl'},{v:'multiple_choice',l:'Mehrfachauswahl'},{v:'rating',l:'Bewertung (1â€“5)'}];
+        var typen = [{v:'text',l:'Freitext'},{v:'single_choice',l:'Einzelauswahl'},{v:'multiple_choice',l:'Mehrfachauswahl'},{v:'rating',l:'Bewertung (1-5)'}];
         typen.forEach(function(t) {
             html += '<option value="' + t.v + '"' + (typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
         });
         html += '</select>';
         html += '<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">'
              + '<input type="checkbox" ' + (frage.required ? 'checked' : '') + ' id="bearbeiten-req-' + index + '"> Pflichtfeld</label>';
+        html += '<button class="btn-danger btn-sm" style="margin-left:auto;" onclick="if(confirm(\'Möchten Sie diese Frage aus der Umfrage löschen?\')){this.closest(\'.frage-karte\').remove(); updateFrageNummernBearbeiten();}">X</button>';
         html += '</div>';
         html += '<input type="text" class="form-control" id="bearbeiten-label-' + index + '" value="' + escapeHtml(frage.label || '') + '" placeholder="Fragetext">';
 
@@ -531,8 +544,33 @@
             html += '<button class="btn-link" onclick="optionHinzufuegenBearbeiten(' + index + ')">Option hinzufügen</button>';
             html += '</div>';
         }
+
+        // Optionen für Bewertung (rating)
+        var isRating = (typ === 'rating');
+        html += '<div class="rating-config-bereich" id="bearbeiten-rating-config-' + index + '" style="' + (isRating ? '' : 'display:none;') + '; margin-top: 10px; border: 1px dashed var(--color-hs-kehl); padding: 10px; border-radius: 4px;">';
+        html += '<label class="form-label" style="font-weight: 500; display: block; margin-bottom: 4px;">Bewertungs-Darstellung:</label>';
+        html += '<select class="form-control rating-subtype-select" id="bearbeiten-rating-subtype-' + index + '" style="margin-bottom: 8px; width: auto; display: inline-block;">';
+        html += '<option value="boxes"' + (frage.subtype === 'boxes' ? ' selected' : '') + '>Zahlen-Boxen (1 bis 5)</option>';
+        html += '<option value="slider"' + (frage.subtype === 'slider' ? ' selected' : '') + '>Schieberegler (1 bis 5)</option>';
+        html += '</select>';
+        html += '<div style="display: flex; gap: 10px;">';
+        html += '  <div style="flex: 1;"><label class="form-label" style="font-size: 0.85rem; display: block; margin-bottom: 2px;">Beschriftung links (Wert 1):</label><input type="text" class="form-control rating-min-label-input" id="bearbeiten-rating-min-' + index + '" value="' + escapeHtml(frage.scale_min_label || 'Sehr gut') + '" placeholder="z. B. Sehr gut"></div>';
+        html += '  <div style="flex: 1;"><label class="form-label" style="font-size: 0.85rem; display: block; margin-bottom: 2px;">Beschriftung rechts (Wert 5):</label><input type="text" class="form-control rating-max-label-input" id="bearbeiten-rating-max-' + index + '" value="' + escapeHtml(frage.scale_max_label || 'Ungenügend') + '" placeholder="z. B. Ungenügend"></div>';
+        html += '</div>';
+        html += '</div>';
+
         html += '</div>';
         return html;
+    }
+
+    function updateFrageNummernBearbeiten() {
+        var karten = document.querySelectorAll('#bearbeiten-fragen .frage-karte');
+        karten.forEach(function(karte, i) {
+            var nrSpan = karte.querySelector('.frage-nr');
+            if (nrSpan) {
+                nrSpan.textContent = 'Frage ' + (i + 1);
+            }
+        });
     }
 
     function optionHinzufuegenBearbeiten(frageIndex) {
@@ -546,6 +584,9 @@
 
     function frageTypGeaendertBearbeiten(index, neuerTyp, umfrageJson) {
         var optBereich = document.getElementById('bearbeiten-optionen-' + index);
+        var ratingBereich = document.getElementById('bearbeiten-rating-config-' + index);
+        
+        // Handle choice options visibility
         if (neuerTyp === 'single_choice' || neuerTyp === 'multiple_choice') {
             if (!optBereich) {
                 var karte = document.getElementById('bearbeiten-frage-' + index);
@@ -563,24 +604,53 @@
         } else if (optBereich) {
             optBereich.style.display = 'none';
         }
+
+        // Handle rating configuration visibility
+        if (neuerTyp === 'rating') {
+            if (ratingBereich) {
+                ratingBereich.style.display = '';
+            }
+        } else if (ratingBereich) {
+            ratingBereich.style.display = 'none';
+        }
     }
 
-    function umfrageAktualisieren(rolle, surveyId, titel) {
+    function umfrageAktualisieren(surveyId) {
+        var titel = document.getElementById('bearbeiten-input-titel').value.trim();
+        var beschreibung = document.getElementById('bearbeiten-input-beschreibung').value.trim();
+
+        if (!titel) {
+            zeigeBearbeitenStatus('Fehler: Bitte einen Titel eingeben.', 'fehler');
+            return;
+        }
+
         // Alle Fragen aus dem Bearbeiten-Editor einlesen
         var fragenContainer = document.getElementById('bearbeiten-fragen');
         var frageKarten = fragenContainer.querySelectorAll('.frage-karte');
         var fragen = [];
+        var fehler = false;
+        
         frageKarten.forEach(function(karte, i) {
             var id = karte.id.replace('bearbeiten-frage-', '');
             var labelInput = document.getElementById('bearbeiten-label-' + id);
             var reqInput = document.getElementById('bearbeiten-req-' + id);
             var typSelect = karte.querySelector('select');
+            
+            var label = labelInput ? labelInput.value.trim() : '';
+            if (!label) {
+                labelInput.style.borderColor = 'var(--color-danger)';
+                fehler = true;
+                return;
+            }
+            labelInput.style.borderColor = '';
+
             var frage = {
                 id: 'q' + (i + 1),
                 type: typSelect ? typSelect.value : 'text',
-                label: labelInput ? labelInput.value : '',
+                label: label,
                 required: reqInput ? reqInput.checked : false
             };
+            
             if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
                 var optContainer = document.getElementById('bearbeiten-optionen-' + id);
                 if (optContainer) {
@@ -588,21 +658,44 @@
                     optContainer.querySelectorAll('.option-input').forEach(function(inp, oi) {
                         if (inp.value.trim()) {
                             frage.options.push({
-                                value: 'opt' + (oi + 1) + '_' + inp.value.toLowerCase().replace(/\s+/g, '_').substring(0, 20),
+                                value: 'opt' + (oi + 1) + '_' + inp.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
                                 text: inp.value.trim()
                             });
                         }
                     });
                 }
             }
-            if (frage.label.trim()) fragen.push(frage);
+            
+            if (frage.type === 'rating') {
+                var subtypeSelect = document.getElementById('bearbeiten-rating-subtype-' + id);
+                var minInput = document.getElementById('bearbeiten-rating-min-' + id);
+                var maxInput = document.getElementById('bearbeiten-rating-max-' + id);
+                frage.subtype = subtypeSelect ? subtypeSelect.value : 'boxes';
+                frage.scale_min_label = minInput ? minInput.value.trim() : 'Sehr gut';
+                frage.scale_max_label = maxInput ? maxInput.value.trim() : 'Ungenügend';
+                frage.options = [
+                    {value:'1', text:'1 - Sehr schlecht'},
+                    {value:'2', text:'2 - Schlecht'},
+                    {value:'3', text:'3 - Neutral'},
+                    {value:'4', text:'4 - Gut'},
+                    {value:'5', text:'5 - Sehr gut'}
+                ];
+            }
+            fragen.push(frage);
         });
 
+        if (fehler) return;
+
         if (fragen.length === 0) {
-            zeigeBearbeitenStatus('Bitte mindestens eine Frage mit Text ausfüllen.', 'fehler'); return;
+            zeigeBearbeitenStatus('Bitte mindestens eine Frage ausfüllen.', 'fehler'); return;
         }
 
-        var nutzlast = { survey_id: surveyId, title: titel, role: rolle, questions: fragen };
+        var nutzlast = {
+            survey_id: surveyId,
+            title: titel,
+            description: beschreibung,
+            questions: fragen
+        };
         zeigeBearbeitenStatus('Speichern...', 'info');
 
         fetch('/admin/surveys/save', {
@@ -614,6 +707,7 @@
         .then(function(res) {
             if (res.ok) {
                 zeigeBearbeitenStatus('Umfrage "' + escapeHtml(titel) + '" erfolgreich gespeichert!', 'erfolg');
+                setTimeout(function() { window.location.reload(); }, 1200);
             } else {
                 zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
             }
@@ -674,6 +768,19 @@
                     opts.push(inp.value);
                 });
                 frage._cachedOptions = opts;
+            }
+
+            var subtypeFeld = document.getElementById('neu-rating-subtype-' + frage.id);
+            if (subtypeFeld) {
+                frage.ratingSubtype = subtypeFeld.value;
+            }
+            var minFeld = document.getElementById('neu-rating-min-' + frage.id);
+            if (minFeld) {
+                frage.scaleMinLabel = minFeld.value;
+            }
+            var maxFeld = document.getElementById('neu-rating-max-' + frage.id);
+            if (maxFeld) {
+                frage.scaleMaxLabel = maxFeld.value;
             }
         });
     }
@@ -770,11 +877,19 @@
             html += '<button class="btn-link" onclick="optionHinzufuegen(' + frage.id + ')">Option hinzufügen</button>';
             html += '</div>';
 
-            if (frage.typ === 'rating') {
-                html += '<div class="optionen-bereich" style="color:var(--color-text-light);font-size:0.9rem;">'
-                      + 'Bewertungsskala 1-5 (wird automatisch angezeigt)'
-                      + '</div>';
-            }
+            // Optionen-Bereich für Bewertung (wird für rating angezeigt, aber wir behalten die Eingaben im State!)
+            var isRating = (frage.typ === 'rating');
+            html += '<div class="rating-config-bereich" id="neu-rating-config-' + frage.id + '" style="' + (isRating ? '' : 'display:none;') + '; margin-top: 10px; border: 1px dashed var(--color-hs-kehl); padding: 10px; border-radius: 4px;">';
+            html += '<label class="form-label" style="font-weight: 500; display: block; margin-bottom: 4px;">Bewertungs-Darstellung:</label>';
+            html += '<select class="form-control rating-subtype-select" id="neu-rating-subtype-' + frage.id + '" style="margin-bottom: 8px; width: auto; display: inline-block;">';
+            html += '<option value="boxes"' + (frage.ratingSubtype === 'boxes' ? ' selected' : '') + '>Zahlen-Boxen (1 bis 5)</option>';
+            html += '<option value="slider"' + (frage.ratingSubtype === 'slider' ? ' selected' : '') + '>Schieberegler (1 bis 5)</option>';
+            html += '</select>';
+            html += '<div style="display: flex; gap: 10px;">';
+            html += '  <div style="flex: 1;"><label class="form-label" style="font-size: 0.85rem; display: block; margin-bottom: 2px;">Beschriftung links (Wert 1):</label><input type="text" class="form-control rating-min-label-input" id="neu-rating-min-' + frage.id + '" value="' + escapeHtml(frage.scaleMinLabel || 'Sehr gut') + '" placeholder="z. B. Sehr gut"></div>';
+            html += '  <div style="flex: 1;"><label class="form-label" style="font-size: 0.85rem; display: block; margin-bottom: 2px;">Beschriftung rechts (Wert 5):</label><input type="text" class="form-control rating-max-label-input" id="neu-rating-max-' + frage.id + '" value="' + escapeHtml(frage.scaleMaxLabel || 'Ungenügend') + '" placeholder="z. B. Ungenügend"></div>';
+            html += '</div>';
+            html += '</div>';
 
             html += '</div>'; // frage-karte
         });
@@ -821,7 +936,6 @@
     function umfrageSpeichern() {
         var titel = document.getElementById('neu-titel').value.trim();
         var beschreibung = document.getElementById('neu-beschreibung').value.trim();
-        var rolle = document.getElementById('neu-rolle').value;
 
         if (!titel) { zeigeErstellenStatus('Fehler: Bitte einen Titel eingeben.', 'fehler'); return; }
         if (fragenListe.length === 0) { zeigeErstellenStatus('Fehler: Bitte mindestens eine Frage hinzufügen.', 'fehler'); return; }
@@ -867,6 +981,12 @@
                     fehler = true; return;
                 }
             } else if (typ === 'rating') {
+                var subtypeSelect = document.getElementById('neu-rating-subtype-' + frage.id);
+                var minInput = document.getElementById('neu-rating-min-' + frage.id);
+                var maxInput = document.getElementById('neu-rating-max-' + frage.id);
+                frageObj.subtype = subtypeSelect ? subtypeSelect.value : 'boxes';
+                frageObj.scale_min_label = minInput ? minInput.value.trim() : 'Sehr gut';
+                frageObj.scale_max_label = maxInput ? maxInput.value.trim() : 'Ungenügend';
                 frageObj.options = [
                     {value:'1', text:'1 - Sehr schlecht'},
                     {value:'2', text:'2 - Schlecht'},
@@ -881,10 +1001,9 @@
         if (fehler) return;
 
         var nutzlast = {
-            survey_id: 'ask_alma_' + rolle + '_' + Date.now(),
+            survey_id: 'ask_alma_' + Date.now(),
             title: titel,
             description: beschreibung,
-            role: rolle,
             questions: fragen
         };
 
@@ -931,6 +1050,14 @@
             try {
                 var jsonStr = e.target.result;
                 var daten = JSON.parse(jsonStr);
+
+                // Eindeutige survey_id generieren, damit Importe andere Umfragen nie überschreiben
+                daten.survey_id = 'ask_alma_' + Date.now();
+
+                var customTitel = document.getElementById('import-titel-input').value.trim();
+                if (customTitel) {
+                    daten.title = customTitel;
+                }
 
                 var fehler = validiereImportierteStruktur(daten);
                 if (fehler.length > 0) {
@@ -985,9 +1112,7 @@
         if (!daten.title || typeof daten.title !== 'string' || !daten.title.trim()) {
             fehler.push("Fehlendes oder ungültiges Pflichtfeld 'title'");
         }
-        if (!daten.role || typeof daten.role !== 'string' || (daten.role !== 'student' && daten.role !== 'professor')) {
-            fehler.push("Fehlendes oder ungültiges Pflichtfeld 'role' (muss 'student' oder 'professor' sein)");
-        }
+
 
         if (!daten.questions || !Array.isArray(daten.questions)) {
             fehler.push("Fehlendes oder ungültiges Fragen-Array ('questions')");

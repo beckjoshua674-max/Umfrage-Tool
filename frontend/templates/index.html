@@ -145,6 +145,16 @@
              Validierung: Wert muss "1"–"5" sein – vgl. Kap. 13
              ============================================================ -->
         {% elif question.type == 'rating' %}
+        <style>
+            /* Spezifische Styling-Korrekturen für das Bewertungsfeld */
+            .rating-label.rating-aktiv {
+                background-color: var(--color-hs-kehl) !important;
+                color: #ffffff !important;
+            }
+            .rating-label.rating-aktiv .rating-zahl-num {
+                color: #ffffff !important;
+            }
+        </style>
         <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
@@ -152,8 +162,27 @@
 
             <p class="question-label">{{ question.label }}</p>
             <p class="rating-legende" style="color: var(--color-text-light); font-size: 0.9rem; margin-bottom: 12px; font-weight: 500;">
-                Skala: 1 = Sehr gut, 5 = Ungenügend
+                Skala: 1 = {{ question.scale_min_label | default('Sehr gut') }}, 5 = {{ question.scale_max_label | default('Ungenügend') }}
             </p>
+            
+            {% if question.subtype == 'slider' %}
+            <div class="slider-group" style="margin: 20px 0 24px;">
+                <input type="range" name="answer" min="1" max="5" step="1" 
+                       value="{{ saved_answer if saved_answer else '3' }}" 
+                       class="modern-slider" style="width: 100%; height: 8px; border-radius: 4px; outline: none; transition: background 0.3s; cursor: pointer; accent-color: var(--color-hs-kehl);"
+                       oninput="document.getElementById('slider-value-display-{{ question.id }}').textContent = this.value;">
+                <div style="display: flex; justify-content: space-between; margin-top: 8px; font-weight: bold; color: var(--color-hs-kehl); font-size: 0.9rem;">
+                    <span>1</span>
+                    <span>2</span>
+                    <span>3</span>
+                    <span>4</span>
+                    <span>5</span>
+                </div>
+                <div style="text-align: center; margin-top: 15px; font-size: 1.1rem; font-weight: bold; color: var(--color-hs-kehl);">
+                    Ausgewählter Wert: <span id="slider-value-display-{{ question.id }}">{{ saved_answer if saved_answer else '3' }}</span>
+                </div>
+            </div>
+            {% else %}
             <div class="rating-group" style="display:flex; gap:15px; margin-bottom: 24px;">
                 {% for wert in [1, 2, 3, 4, 5] %}
                 <label class="rating-label {% if saved_answer == wert|string %}rating-aktiv{% endif %}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 50px; height: 50px; border: 2px solid var(--color-hs-kehl); border-radius: 4px; cursor: pointer; user-select: none; transition: all var(--transition-speed); font-weight: bold; font-size: 1.2rem; color: var(--color-hs-kehl); min-width: 50px;">
@@ -164,6 +193,7 @@
                 </label>
                 {% endfor %}
             </div>
+            {% endif %}
 
             <div class="step-nav">
                 {% if step > 0 %}

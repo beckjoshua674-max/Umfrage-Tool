@@ -1,0 +1,28 @@
+{
+  "survey_id": "ask_alma_campus_services_v1",
+  "title": "Ask Alma - Campus-Dienste Umfrage",
+  "description": "Wie bewerten Sie die IT-Infrastruktur und die Campus-Dienste unserer Hochschule?",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple_choice",
+      "label": "Welche Dienste nutzen Sie regelmäßig?",
+      "required": true,
+      "options": [
+        { "value": "wlan", "text": "Hochschul-WLAN" },
+        { "value": "bibliothek", "text": "Bibliotheks-Katalog" },
+        { "value": "mensa_app", "text": "Mensa-Speiseplan" },
+        { "value": "drucker", "text": "Drucker-Stationen" }
+      ]
+    },
+    {
+      "id": "q2",
+      "type": "rating",
+      "subtype": "slider",
+      "scale_min_label": "Sehr zufrieden",
+      "scale_max_label": "Unzufrieden",
+      "label": "Wie zufrieden sind Sie mit der Geschwindigkeit des WLANs?",
+      "required": true
+    }
+  ]
+}

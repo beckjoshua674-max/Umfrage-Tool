@@ -1,24 +1,46 @@
 {% extends "base.html" %}
 
-{% block title %}Ask Alma - Rollenauswahl{% endblock %}
+{% block title %}Ask Alma - Umfragen{% endblock %}
 {% block header_title %}Ask Alma - Evaluation{% endblock %}
-{% block header_subtitle %}Bitte wählen Sie Ihre Rolle aus, um fortzufahren.{% endblock %}
+{% block header_subtitle %}Bitte wählen Sie eine Umfrage aus, um fortzufahren.{% endblock %}
 
 {% block content %}
-<section class="survey-box role-select-box">
-    <div class="role-grid">
-        <a href="{{ url_for('survey', role='student') }}" class="role-btn">
-            <span class="role-text">Ich bin Student</span>
-        </a>
-        <a href="{{ url_for('survey', role='professor') }}" class="role-btn">
-            <span class="role-text">Ich bin Professor</span>
-        </a>
+<section class="survey-box role-select-box" style="max-width: 600px; margin: 0 auto; padding: 30px;">
+    
+    <h2 style="color: var(--color-hs-kehl); text-align: center; margin-bottom: 25px; font-size: 1.4rem;">Verfügbare Umfragen</h2>
+
+    <div class="survey-lists" style="display: flex; flex-direction: column; gap: 25px; margin-bottom: 30px;">
+        {% if umfragen %}
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+            {% for umfrage in umfragen %}
+                <a href="{{ url_for('survey', survey_id=umfrage.survey_id) }}" class="role-btn-item" style="text-align: left; padding: 15px; border: 1.5px solid #e0e0e0; border-radius: 4px; text-decoration: none; display: block; background: #fff; transition: all 0.2s;">
+                    <strong style="display: block; color: var(--color-hs-kehl); font-size: 1.05rem; margin-bottom: 4px;">{{ umfrage.title }}</strong>
+                    {% if umfrage.description %}
+                        <span style="color: var(--color-text-light); font-size: 0.85rem; font-weight: normal; display: block; line-height: 1.35;">{{ umfrage.description }}</span>
+                    {% endif %}
+                </a>
+            {% endfor %}
+            </div>
+        {% else %}
+            <p style="color: var(--color-text-light); font-style: italic; font-size: 0.9rem; text-align: center;">Aktuell keine Umfragen im System vorhanden.</p>
+        {% endif %}
     </div>
-    
-    <hr class="role-divider">
-    
-    <a href="{{ url_for('login_page', role='admin') }}" class="role-btn admin-btn">
-        <span class="role-text">Login als Admin</span>
+
+    <hr class="role-divider" style="margin: 25px 0; border: none; border-top: 1.5px solid #e0e0e0;">
+
+    <a href="{{ url_for('login_page', role='admin') }}" class="role-btn admin-btn" style="display: block; text-align: center; background-color: var(--color-hs-kehl); color: #fff; padding: 12px; border-radius: 4px; text-decoration: none; font-weight: bold; transition: opacity 0.2s;">
+        Login als Admin
     </a>
 </section>
+
+<style>
+    .role-btn-item {
+        color: var(--color-text);
+    }
+    .role-btn-item:hover {
+        border-color: var(--color-hs-kehl) !important;
+        box-shadow: 0 2px 6px rgba(0, 74, 150, 0.08);
+        transform: translateY(-1px);
+    }
+</style>
 {% endblock %}
