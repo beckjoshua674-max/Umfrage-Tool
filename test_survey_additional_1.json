@@ -1,0 +1,34 @@
+{
+  "survey_id": "ask_alma_course_eval_v1",
+  "title": "Ask Alma - Vorlesungsevaluation",
+  "description": "Bitte bewerten Sie die Qualität der Vorlesungen in diesem Semester.",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "single_choice",
+      "label": "Die Struktur der Vorlesung war klar und verständlich.",
+      "required": true,
+      "options": [
+        { "value": "trifft_zu", "text": "Trifft voll zu" },
+        { "value": "trifft_eher_zu", "text": "Trifft eher zu" },
+        { "value": "trifft_eher_nicht_zu", "text": "Trifft eher nicht zu" },
+        { "value": "trifft_nicht_zu", "text": "Trifft gar nicht zu" }
+      ]
+    },
+    {
+      "id": "q2",
+      "type": "rating",
+      "subtype": "boxes",
+      "scale_min_label": "Hervorragend",
+      "scale_max_label": "Mangelhaft",
+      "label": "Geben Sie dem Dozenten eine Gesamtnote (1 = Hervorragend, 5 = Mangelhaft):",
+      "required": true
+    },
+    {
+      "id": "q3",
+      "type": "text",
+      "label": "Haben Sie Verbesserungsvorschläge für die Lehrveranstaltung?",
+      "required": false
+    }
+  ]
+}

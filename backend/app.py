@@ -93,17 +93,30 @@ def normalisiere_rolle(rolle):
     return rolle
 
 
-def lade_umfrage(rolle):
-    """Laedt die Umfragedefinition fuer student oder professor."""
-    pfad = SURVEY_FILES[normalisiere_rolle(rolle)]
-    with pfad.open("r", encoding="utf-8") as file:
-        return json.load(file)
+def lade_erste_umfrage():
+    """Laedt die erste verfuegbare Umfragedefinition."""
+    # Erst standardmaessige survey_student.json oder survey_professor.json probieren
+    for name in ("survey_student.json", "survey_professor.json"):
+        pfad = DATA_DIR / name
+        if pfad.exists():
+            with pfad.open("r", encoding="utf-8") as file:
+                return json.load(file)
+    # Ansonsten alle survey_*.json scannen und die erste passende Rueckgeben
+    for pfad in DATA_DIR.glob("survey_*.json"):
+        try:
+            with pfad.open("r", encoding="utf-8") as file:
+                return json.load(file)
+        except Exception:
+            continue
+    raise FileNotFoundError("Keine Umfrage gefunden.")
 
 
 def speichere_umfrage(rolle, daten):
-    """Speichert eine Umfragedefinition in der passenden Rollendatei."""
+    """Speichert eine Umfragedefinition in einer Datei basierend auf ihrer survey_id."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    pfad = SURVEY_FILES[normalisiere_rolle(rolle)]
+    survey_id = daten.get("survey_id")
+    sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
+    pfad = DATA_DIR / f"survey_{sichere_id}.json"
     with pfad.open("w", encoding="utf-8") as file:
         json.dump(daten, file, ensure_ascii=False, indent=2)
         file.write("\n")
@@ -111,25 +124,27 @@ def speichere_umfrage(rolle, daten):
 
 def finde_umfrage_nach_id(survey_id):
     """Sucht eine Umfragedefinition anhand ihrer survey_id."""
-    for rolle in SURVEY_FILES:
+    for pfad in DATA_DIR.glob("survey_*.json"):
         try:
-            umfrage = lade_umfrage(rolle)
-        except FileNotFoundError:
+            with pfad.open("r", encoding="utf-8") as file:
+                umfrage = json.load(file)
+                if umfrage.get("survey_id") == survey_id:
+                    return None, umfrage
+        except Exception:
             continue
-        if umfrage.get("survey_id") == survey_id:
-            return rolle, umfrage
     return None, None
 
 
 def finde_umfrage_pfad_nach_id(survey_id):
     """Sucht den Dateipfad einer Umfrage anhand ihrer survey_id."""
-    for rolle, pfad in SURVEY_FILES.items():
-        if not pfad.exists():
+    for pfad in DATA_DIR.glob("survey_*.json"):
+        try:
+            with pfad.open("r", encoding="utf-8") as file:
+                daten = json.load(file)
+                if daten.get("survey_id") == survey_id:
+                    return None, pfad
+        except Exception:
             continue
-        with pfad.open("r", encoding="utf-8") as file:
-            daten = json.load(file)
-        if daten.get("survey_id") == survey_id:
-            return rolle, pfad
     return None, None
 
 
@@ -137,11 +152,9 @@ def validiere_umfrage_definition(payload):
     """Prueft eine vom Admin gespeicherte Umfragedefinition."""
     if not isinstance(payload, dict):
         return "Der Request-Body muss ein JSON-Objekt sein."
-    for feld in ("survey_id", "role", "title", "questions"):
+    for feld in ("survey_id", "title", "questions"):
         if feld not in payload:
             return f"Das Pflichtfeld '{feld}' fehlt."
-    if payload["role"] not in SURVEY_FILES:
-        return "Das Feld 'role' muss 'student' oder 'professor' sein."
     if not isinstance(payload["questions"], list):
         return "Das Feld 'questions' muss eine Liste sein."
 
@@ -369,9 +382,8 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self._sende_json(200, umfrage)
                 return
 
-            rolle = normalisiere_rolle(query.get("role", ["student"])[0])
             try:
-                self._sende_json(200, lade_umfrage(rolle))
+                self._sende_json(200, lade_erste_umfrage())
             except FileNotFoundError:
                 self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
             return
@@ -426,7 +438,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             if fehler:
                 self._sende_json(400, {"status": "error", "message": fehler})
                 return
-            speichere_umfrage(payload["role"], payload)
+            speichere_umfrage(None, payload)
             self._sende_json(201, {"status": "created", "survey_id": payload["survey_id"]})
             return
 
