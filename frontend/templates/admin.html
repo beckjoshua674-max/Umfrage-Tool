@@ -58,11 +58,17 @@
                 </select>
                 {% endif %}
             </div>
-            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
-               onclick="handleCsvExport(event, 'stats')">
-                CSV exportieren
-            </a>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <a href="{{ url_for('admin') }}" class="btn-secondary"
+                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+                    Aktualisieren
+                </a>
+                <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+                   onclick="handleCsvExport(event, 'stats')">
+                    CSV exportieren
+                </a>
+            </div>
         </div>
         <div class="card-body">
             {% for sid, fragen_stats in statistiken.items() %}
@@ -154,13 +160,13 @@
                     <tbody>
                         {% for r in ergebnisse %}
                         <tr class="ergebnis-zeile" data-survey-id="{{ r.get('survey_id', '') }}">
-                            <td><span class="badge">{{ r.get('result_id', '?')[:8] }}â€¦</span></td>
+                            <td><span class="badge">{{ r.get('result_id', '?')[:8] }}...</span></td>
                             <td class="td-small">
                                 {% if r.get('received_at') %}
                                     {{ r.received_at[:16] | replace('T', ' ') }}
                                 {% elif r.get('timestamp') %}
                                     {{ r.timestamp[:16] | replace('T', ' ') }}
-                                {% else %}â€“{% endif %}
+                                {% else %}-{% endif %}
                             </td>
                             <td><span class="badge badge-secondary">{{ r.get('survey_id', '?') }}</span></td>
                             <td>
@@ -300,7 +306,7 @@
             <div id="fragen-container">
                 <!-- Fragen werden hier per JS eingefügt -->
                 <div id="keine-fragen-hinweis" class="leer-hinweis">
-                    Noch keine Fragen. Klicken Sie auf â€žFrage hinzufügen".
+                    Noch keine Fragen. Klicken Sie auf "Frage hinzufügen".
                 </div>
             </div>
 
@@ -832,7 +838,7 @@
         document.getElementById('fragen-anzahl-badge').textContent = fragenListe.length;
 
         if (fragenListe.length === 0) {
-            container.innerHTML = '<div id="keine-fragen-hinweis" class="leer-hinweis">Noch keine Fragen. Klicken Sie auf â€žFrage hinzufügen".</div>';
+            container.innerHTML = '<div id="keine-fragen-hinweis" class="leer-hinweis">Noch keine Fragen. Klicken Sie auf "Frage hinzufügen".</div>';
             return;
         }
 

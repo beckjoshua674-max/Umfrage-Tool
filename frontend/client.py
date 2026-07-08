@@ -301,8 +301,17 @@ def berechne_statistiken(umfragen, ergebnisse):
             for ergebnis in ergebnisse:
                 if ergebnis.get('survey_id') != sid:
                     continue
-                rohwert = ergebnis.get('answers', {}).get(fid, '')
-                if antwort_ist_leer(rohwert):
+                answers = ergebnis.get('answers', {})
+                rohwert = answers.get(fid)
+                if rohwert is None:
+                    # Alternativer Key (z.B. p1 statt q1) für Legacy-Kompatibilität
+                    if fid.startswith('q'):
+                        alt_fid = 'p' + fid[1:]
+                        rohwert = answers.get(alt_fid)
+                    elif fid.startswith('p'):
+                        alt_fid = 'q' + fid[1:]
+                        rohwert = answers.get(alt_fid)
+                if rohwert is None or antwort_ist_leer(rohwert):
                     continue
                 if frage.get('type') == 'multiple_choice':
                     einzelwerte = normalisiere_antwortwerte(rohwert)
@@ -319,11 +328,35 @@ def berechne_statistiken(umfragen, ergebnisse):
                 else:
                     einzelwerte = [str(rohwert).strip()]
                 for wert in einzelwerte:
+                    sicherer_wert = str(wert).strip()
+                    # Mapping alter Antwortwerte der Professoren-Evaluation auf neue Werte
+                    LEGACY_MAPPING = {
+                        "kein_nutzen": "opt3_kein_merklicher_nutz",
+                        "sehr_hoher_nutzen": "opt1_sehr_hoher_nutzen",
+                        "moderater_nutzen": "opt2_moderater_nutzen",
+                        "teilweise_entlastet": "opt2_ja__teilweise",
+                        "stark_entlastet": "opt1_ja__stark_entlastet",
+                        "kaum": "opt3_nein__kaum",
+                        "oft_fehlerhaft": "opt3_oft_fehlerhaft",
+                        "stets_korrekt": "opt1_stets_korrekt",
+                        "meistens_korrekt": "opt2_meistens_korrekt",
+                        "vielleicht": "opt2_eventuell",
+                        "ja_auf_jeden_fall": "opt1_ja__auf_jeden_fall",
+                        "wahrscheinlich_nicht": "opt3_wahrscheinlich_nicht",
+                        "gering": "opt3_geringe_akzeptanz",
+                        "sehr_hoch": "opt1_sehr_hohe_akzeptanz",
+                        "mittlere": "opt2_mittlere_akzeptanz",
+                        "nein": "opt3_nein__nicht_n_tig",
+                        "ja_dringend": "opt1_ja__dringend",
+                        "waere_nett": "opt2_w_re_ein_nettes_feat",
+                    }
+                    if sicherer_wert in LEGACY_MAPPING:
+                        sicherer_wert = LEGACY_MAPPING[sicherer_wert]
                     # Wert auf Optionstext mappen
-                    angezeigter_text = wert  # Fallback: Rohwert anzeigen
+                    angezeigter_text = sicherer_wert  # Fallback
                     if frage.get('options'):
                         for opt in frage['options']:
-                            if opt['value'] == wert or opt['text'] == wert:
+                            if opt['value'] == sicherer_wert or opt['text'] == sicherer_wert:
                                 angezeigter_text = opt['text']
                                 break
                     zaehler[angezeigter_text] = zaehler.get(angezeigter_text, 0) + 1

@@ -129,6 +129,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if not request.path.startswith('/admin') and not request.path.startswith('/login') %}
     <section class="container privacy-section" aria-label="Datenschutzinformationen">
         <details class="privacy-notice">
             <summary>Datenschutzinformationen zur Teilnahme</summary>
@@ -138,8 +139,8 @@
                     Auswertung der jeweiligen Umfrage und zur Verbesserung des Angebots verarbeitet.
                 </p>
                 <ul>
-                    <li><strong>Verantwortlich:</strong> Hochschule für öffentliche Verwaltung Kehl, Kinzigallee 1, 77694 Kehl, post(at)hs-kehl.de.</li>
-                    <li><strong>Datenschutzbeauftragter:</strong> Prof. Dr. Philipp Singler, datenschutzbeauftragte(at)hs-kehl.de.</li>
+                    <li><strong>Verantwortlich:</strong> Hochschule für öffentliche Verwaltung Kehl, Kinzigallee 1, 77694 Kehl, <a href="mailto:post@hs-kehl.de">post@hs-kehl.de</a>.</li>
+                    <li><strong>Datenschutzbeauftragter:</strong> Prof. Dr. Philipp Singler, <a href="mailto:datenschutzbeauftragte@hs-kehl.de">datenschutzbeauftragte@hs-kehl.de</a>.</li>
                     <li><strong>Verarbeitete Daten:</strong> Umfrageantworten, Zeitstempel, technisch notwendige Sitzungsdaten und ein Teilnahme-Cookie zur Vermeidung mehrfacher Teilnahme. Namen, Matrikelnummern oder E-Mail-Adressen werden nicht automatisch erhoben.</li>
                     <li><strong>Rechtsgrundlage:</strong> Ihre freiwillige Einwilligung durch Abgabe der Antworten nach Art. 6 Abs. 1 lit. a DSGVO; technisch notwendige Verarbeitung zur Bereitstellung der Anwendung.</li>
                     <li><strong>Empfänger:</strong> Zugriff erhalten nur berechtigte Projekt- und Administrationspersonen der Hochschule. Eine Weitergabe an Dritte erfolgt nur, wenn eine gesetzliche Pflicht besteht.</li>
@@ -155,6 +156,7 @@
             </div>
         </details>
     </section>
+    {% endif %}
 
     <footer class="app-footer">
         <div class="container">
