@@ -6,13 +6,12 @@
     <title>{% block title %}Ask Alma - Hochschule Kehl{% endblock %}</title>
     <!-- Verweist auf den static-Ordner in Flask -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="app-header">
         <div class="container header-content">
-            <a href="{{ url_for('index') }}" class="logo-link">
-                <img src="https://www.hs-kehl.de/wp-content/uploads/logo-new.svg" alt="Hochschule Kehl Logo" class="header-logo">
+            <a href="{{ url_for('index') }}" class="header-logo-link" aria-label="Zur Startseite">
+                <img src="{{ url_for('static', filename='img/Logo_Hochschule_Kehl.png') }}" alt="Hochschule Kehl Logo" class="header-logo">
             </a>
             <div class="header-titles">
                 <h1>{% block header_title %}Ask Alma Evaluation{% endblock %}</h1>
@@ -20,7 +19,7 @@
             </div>
             
             {% if session.get('token') %}
-            <div style="position: absolute; right: var(--spacing-md); top: 30px;">
+            <div class="header-session-actions">
                 <a href="{{ url_for('logout') }}" class="btn-outline-light btn-sm">Logout</a>
             </div>
             {% endif %}
@@ -129,6 +128,33 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    <section class="container privacy-section" aria-label="Datenschutzinformationen">
+        <details class="privacy-notice">
+            <summary>Datenschutzinformationen zur Teilnahme</summary>
+            <div class="privacy-notice-content">
+                <p>
+                    Die Teilnahme an den Umfragen ist freiwillig. Ihre Angaben werden ausschließlich zur
+                    Auswertung der jeweiligen Umfrage und zur Verbesserung des Angebots verarbeitet.
+                </p>
+                <ul>
+                    <li><strong>Verantwortlich:</strong> Hochschule für öffentliche Verwaltung Kehl, Kinzigallee 1, 77694 Kehl, post(at)hs-kehl.de.</li>
+                    <li><strong>Datenschutzbeauftragter:</strong> Prof. Dr. Philipp Singler, datenschutzbeauftragte(at)hs-kehl.de.</li>
+                    <li><strong>Verarbeitete Daten:</strong> Umfrageantworten, Zeitstempel, technisch notwendige Sitzungsdaten und ein Teilnahme-Cookie zur Vermeidung mehrfacher Teilnahme. Namen, Matrikelnummern oder E-Mail-Adressen werden nicht automatisch erhoben.</li>
+                    <li><strong>Rechtsgrundlage:</strong> Ihre freiwillige Einwilligung durch Abgabe der Antworten nach Art. 6 Abs. 1 lit. a DSGVO; technisch notwendige Verarbeitung zur Bereitstellung der Anwendung.</li>
+                    <li><strong>Empfänger:</strong> Zugriff erhalten nur berechtigte Projekt- und Administrationspersonen der Hochschule. Eine Weitergabe an Dritte erfolgt nur, wenn eine gesetzliche Pflicht besteht.</li>
+                    <li><strong>Speicherdauer:</strong> Antworten werden gelöscht, sobald sie für die Auswertung nicht mehr erforderlich sind; das Teilnahme-Cookie läuft nach 30 Tagen ab.</li>
+                    <li><strong>Ihre Rechte:</strong> Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit, Widerspruch sowie Widerruf einer Einwilligung mit Wirkung für die Zukunft. Außerdem besteht ein Beschwerderecht beim LfDI Baden-Württemberg.</li>
+                    <li><strong>Automatisierte Entscheidungen:</strong> Es findet kein Profiling und keine automatisierte Entscheidung mit rechtlicher Wirkung statt.</li>
+                </ul>
+                <p>
+                    Bitte geben Sie in Freitextfeldern keine direkt identifizierenden Angaben ein, wenn diese
+                    für die Umfrage nicht erforderlich sind. Weitere Informationen finden Sie in der
+                    <a href="https://www.hs-kehl.de/datenschutz/" target="_blank" rel="noopener">Datenschutzerklärung der Hochschule Kehl</a>.
+                </p>
+            </div>
+        </details>
+    </section>
 
     <footer class="app-footer">
         <div class="container">
