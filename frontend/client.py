@@ -157,15 +157,22 @@ def normalisiere_antwortwerte(antwort):
     if isinstance(antwort, list):
         return [str(wert).strip() for wert in antwort if str(wert).strip()]
     text = str(antwort).strip()
+    if (text.startswith("'") and text.endswith("'")) or (text.startswith('"') and text.endswith('"')):
+        text = text[1:-1].strip()
     if not text:
         return []
     if text.startswith("[") and text.endswith("]"):
         try:
-            werte = json.loads(text)
+            werte = json.loads(text.replace("'", '"'))
             if isinstance(werte, list):
                 return [str(wert).strip() for wert in werte if str(wert).strip()]
-        except json.JSONDecodeError:
-            pass
+        except Exception:
+            # Manueller Fallback fuer nicht-JSON-konforme Listen (z.B. mit einfachen Anfuehrungszeichen)
+            innen = text[1:-1].strip()
+            if innen:
+                teile = [t.strip().strip("'").strip('"') for t in innen.split(",")]
+                return [t for t in teile if t]
+            return []
     return [text]
 
 

@@ -10,9 +10,7 @@
 <body>
     <header class="app-header">
         <div class="container header-content">
-            <a href="{{ url_for('index') }}" class="header-logo-link" aria-label="Zur Startseite">
-                <img src="{{ url_for('static', filename='img/Logo_Hochschule_Kehl.png') }}" alt="Hochschule Kehl Logo" class="header-logo">
-            </a>
+            
             <div class="header-titles">
                 <h1>{% block header_title %}Ask Alma Evaluation{% endblock %}</h1>
                 <p>{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>

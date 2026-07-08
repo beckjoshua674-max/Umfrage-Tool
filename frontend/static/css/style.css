@@ -85,7 +85,7 @@ body {
 
 .header-session-actions {
     position: absolute;
-    left: var(--spacing-md);
+    right: var(--spacing-md);
     top: 8px;
 }
 
@@ -354,6 +354,7 @@ main {
 /* Footer */
 .privacy-section {
     padding-bottom: 20px;
+    margin-top: 30px;
 }
 
 .privacy-notice {
@@ -988,7 +989,6 @@ main {
     background: linear-gradient(90deg, var(--color-hs-kehl), #3a82d4);
     border-radius: 10px;
     transition: width 0.4s ease;
-    min-width: 2px;
 }
 
 .statistik-anzahl {
@@ -1032,7 +1032,7 @@ main {
 
     .header-session-actions {
         top: 8px;
-        left: var(--spacing-md);
+        right: var(--spacing-md);
     }
 
     .header-titles h1 {

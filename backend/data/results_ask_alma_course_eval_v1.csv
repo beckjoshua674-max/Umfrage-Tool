@@ -1,0 +1,7 @@
+result_id;timestamp;survey_id;question_id;answer
+7f5e507b-4737-4290-b7df-e9767bacccb1;2026-07-08T17:26:59.849723Z;ask_alma_course_eval_v1;q1;trifft_zu
+7f5e507b-4737-4290-b7df-e9767bacccb1;2026-07-08T17:26:59.849723Z;ask_alma_course_eval_v1;q2;1
+7f5e507b-4737-4290-b7df-e9767bacccb1;2026-07-08T17:26:59.849723Z;ask_alma_course_eval_v1;q3;
+2578c0cc-9fb0-4d63-8adb-0b3621488bb3;2026-07-08T17:34:19.468386Z;ask_alma_course_eval_v1;q1;trifft_zu
+2578c0cc-9fb0-4d63-8adb-0b3621488bb3;2026-07-08T17:34:19.468386Z;ask_alma_course_eval_v1;q2;3
+2578c0cc-9fb0-4d63-8adb-0b3621488bb3;2026-07-08T17:34:19.468386Z;ask_alma_course_eval_v1;q3;

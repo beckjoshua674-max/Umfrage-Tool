@@ -187,11 +187,31 @@ def normalisiere_multiple_choice_antwort(antwort, erlaubte_werte):
     if isinstance(antwort, list):
         return [str(wert).strip() for wert in antwort if str(wert).strip()]
     if isinstance(antwort, str):
-        if not antwort.strip():
+        text = antwort.strip()
+        # Bereinige etwaige Anfuehrungszeichen um die Liste (z.B. '["wert"]' oder "['wert']")
+        if (text.startswith("'") and text.endswith("'")) or (text.startswith('"') and text.endswith('"')):
+            text = text[1:-1].strip()
+        
+        # Falls es eine stringifizierte Liste ist (z.B. ["wert"] oder ['wert'])
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                import json as json_mod
+                werte = json_mod.loads(text.replace("'", '"'))
+                if isinstance(werte, list):
+                    return [str(wert).strip() for wert in werte if str(wert).strip()]
+            except Exception:
+                # Manueller Fallback fuer nicht-JSON-konforme Listen (z.B. mit einfachen Anfuehrungszeichen)
+                innen = text[1:-1].strip()
+                if innen:
+                    teile = [t.strip().strip("'").strip('"') for t in innen.split(",")]
+                    return [t for t in teile if t]
+                return []
+
+        if not text:
             return []
-        if antwort in erlaubte_werte:
-            return [antwort]
-        return zerlege_kommagetrennte_werte(antwort, erlaubte_werte)
+        if text in erlaubte_werte:
+            return [text]
+        return zerlege_kommagetrennte_werte(text, erlaubte_werte)
     return None
 
 
