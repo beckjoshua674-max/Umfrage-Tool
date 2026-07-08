@@ -94,7 +94,7 @@ Die Antworten werden als JSON-Objekt übertragen.
 ## 3. Client-Spezifikationen und State Management
 
 ### 3.1 Dynamisches UI-Rendering
-Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelieferten JSON-Objekts.
+Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht auf Basis des vom Server gelivered JSON-Objekts.
 * **Typ `text`**: Generierung einer HTML-Textarea.
 * **Typ `single_choice`**: Generierung von Radio-Buttons, die im Frontend als eckige Kästchen gerendert werden.
   * **Erzwingung der Single-Choice-Logik:** Das System stellt auf Clientseite strikt sicher, dass zu jedem Zeitpunkt maximal eine Option der Frage ausgewählt sein kann. Das Markieren einer anderen Option deselektiert die vorherige automatisch. Die Javascript-Logik wird separat pro Formular/Frage isoliert (z. B. durch Iteration über das jeweilige Formular/Frage-Container), sodass das Klicken einer Option nur Elemente derselben Frage deselektiert. Im finalen Antwort-Payload an den Server wird ein einzelner String-Wert übergeben.
@@ -102,7 +102,7 @@ Der Client generiert HTML-Formulare zur Laufzeit vollautomatisch und typgerecht 
 * **Typ `rating`**: Generierung einer horizontalen Reihe aus 5 eckigen Boxen (Zahlen 1 bis 5).
   * **Aktiv-Markierung & visuelles Feedback:** Sobald der Nutzer eine Zahl anklickt, wird die entsprechende Box sofort als aktiv markiert (durch farbliches Füllen der Box und weiße Textfarbe der Zahl). Alle anderen Zahlenboxen dieser Frage werden deselektiert.
   * **Orientierungshilfe (Legende):** Direkt über der Zahlenreihe (1 bis 5) wird eine verständliche Beschriftung als Legende eingeblendet, die die Pole der Skala definiert („Skala: 1 = Sehr gut, 5 = Ungenügend“).
-* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definiertes Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
+* **Einheitliches visuelles Design der Kontrollkästchen:** Sowohl für die Einzelauswahl (`single_choice`) als auch für die Mehrfachauswahl (`multiple_choice`) werden systemweit einheitlich eckige Kontrollkästchen (abgerundete Quadrate) verwendet. Eine ausgewählte Option wird durch ein klar definierted Kreuzzeichen „X“ im Kästchen visualisiert. Runde Kontrollfelder (Radio-Kreise) oder andere Ausfüllformen sind auf der Benutzeroberfläche unzulässig.
 
 ### 3.2 Client-Zustandsmanagement (States)
 Der Client durchläuft folgende Phasen:
@@ -119,7 +119,7 @@ Der Client durchläuft folgende Phasen:
 ### 3.4 Bereinigung des Admin-Headers und automatisches Session-Handling
 * Oben rechts im Admin-Header befindet sich ausschließlich ein einziger "Logout"-Button.
 * Alle redundanten Navigationselemente wie "Abmelden", "Zurück zur Startseite" oder "Lockout" sind vollständig entfernt.
-* Beim Klick on "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
+* Beim Klick auf "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
 * **Automatischer Logout bei URL-Wechsel:** Navigiert ein angemeldeter Administrator manuell aus dem Admin-Bereich heraus (z. B. durch Eingabe einer anderen URL wie der Startseite oder der Umfrage-Teilnahmeseite), wird die Session serverseitig beim Abfangen der Anfrage sofort und automatisch gelöscht. Das JWT-Token wird ohne manuelle Interaktion verworfen, um den Administrator-Zustand vollständig zu bereinigen.
 
 ---
@@ -176,7 +176,12 @@ Im Menüpunkt "Umfrage erstellen" (Tab 3) ist im oberen Bereich ein standardisie
 ## 6. Strikte Format- und UI-Vorgaben: Verbot von Emojis und Umlaut-Ersatzschreibweisen
 * Im gesamten Projekt – sowohl in allen Dokumentationsdateien als auch im Quellcode und der gesamten grafischen Benutzeroberfläche (UI) – ist die Verwendung von Emojis, Piktogrammen, grafischen Symbolen (z. B. SVG-Icons) oder Sonderzeichen (wie Pfeilen, Häkchen oder Warndreiecken) strengstens untersagt.
 * Jegliche visuelle Kennzeichnung oder Navigation hat ausschließlich über rein sachlichen, professionellen Text zu erfolgen.
-* **Strikte Umlaut-Regel (Encoding-Erzwingung):** Sämtliche Systemtexte, Bezeichnungen, Labels und Elemente der Benutzeroberfläche müssen echte deutsche Umlaute (ä, ö, ü, ß) verwenden. Jede Form von Ersatzschreibweisen (ae, oe, ue) oder fehlerhaften ASCII/ISO-Codierungen im Frontend ist technisch unzulässig. Die Zeichenkodierung ist im gesamten Projekt ausnahmslos auf UTF-8 konfiguriert.
+* **Strikte Umlaut-Regel (Encoding-Erzwingung):** Sämtliche Systemtexte, Bezeichnungen, Labels und Elemente der Benutzeroberfläche müssen echte deutsche Umlaute (ä, ö, ü, ß) verwenden. Jede Form von Ersatzschreibweisen (ae, oe, ue) oder fehlerhaften ASCII/ISO-Codierungen im Frontend ist technisch unzulässig.
+* **Systemweites UTF-8-Erzwingungsgebot:** 
+  * Das gesamte Projekt ist ausnahmslos auf UTF-8 konfiguriert. Dies gilt für alle HTML-, JavaScript-, Python- (Flask), CSV- und JSON-Dateien.
+  * Beim Einlesen und Schreiben aller JSON- und CSV-Dateien im Python-Code wird explizit das Encoding UTF-8 erzwungen (z. B. `open(..., encoding='utf-8')`).
+  * Sämtliche HTTP-Antworten der Flask-Anwendung liefern den korrekten Header `Content-Type: text/html; charset=utf-8` beziehungsweise `application/json; charset=utf-8` aus.
+  * Jede HTML-Datei deklariert als allererstes Element im `<head>`-Bereich das Meta-Tag `<meta charset="utf-8">`.
 
 ---
 

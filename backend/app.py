@@ -18,8 +18,16 @@ SURVEY_FILES = {
     "student": DATA_DIR / "survey_student.json",
     "professor": DATA_DIR / "survey_professor.json",
 }
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"
+def lade_admin_zugangsdaten():
+    """Liest die Admin-Zugangsdaten aus der JSON-Datei ein."""
+    pfad = DATA_DIR / "admins.json"
+    if not pfad.exists():
+        return {}
+    try:
+        with pfad.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret").encode("utf-8")
 JWT_LIFETIME_SECONDS = 60 * 60 * 8
 
@@ -339,8 +347,9 @@ class ApiHandler(BaseHTTPRequestHandler):
             payload = self._lese_json_body()
             username = payload.get("username") if isinstance(payload, dict) else None
             password = payload.get("password") if isinstance(payload, dict) else None
-            if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-                token = erstelle_jwt(ADMIN_USERNAME, "admin")
+            admins = lade_admin_zugangsdaten()
+            if username in admins and admins[username] == password:
+                token = erstelle_jwt(username, "admin")
                 self._sende_json(200, {"token": token, "role": "admin"})
                 return
             self._sende_json(401, {"status": "error", "message": "Login fehlgeschlagen."})
