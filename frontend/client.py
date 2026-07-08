@@ -141,15 +141,97 @@ def logout():
 # Hilfsfunktionen: Umfrage-Validierung (vgl. requirements.md Kap. 11 & 13)
 # ==============================================================
 
+def antwort_ist_leer(antwort):
+    """Prueft leere Antworten typunabhaengig."""
+    if antwort is None:
+        return True
+    if isinstance(antwort, list):
+        return not any(str(wert).strip() for wert in antwort)
+    return str(antwort).strip() == ""
+
+
+def normalisiere_antwortwerte(antwort):
+    """Normalisiert Antworten fuer Auswertung und Anzeige zu einer Werteliste."""
+    if antwort is None:
+        return []
+    if isinstance(antwort, list):
+        return [str(wert).strip() for wert in antwort if str(wert).strip()]
+    text = str(antwort).strip()
+    if not text:
+        return []
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            werte = json.loads(text)
+            if isinstance(werte, list):
+                return [str(wert).strip() for wert in werte if str(wert).strip()]
+        except json.JSONDecodeError:
+            pass
+    return [text]
+
+
+def zerlege_legacy_werte(text, erlaubte_werte):
+    """Rekonstruiert alte kommagetrennte Antworten anhand erlaubter Werte."""
+    teile = [teil.strip() for teil in text.split(',')]
+    werte = []
+    index = 0
+    while index < len(teile):
+        treffer = None
+        treffer_ende = index + 1
+        for ende in range(len(teile), index, -1):
+            kandidat = ','.join(teile[index:ende]).strip()
+            if kandidat in erlaubte_werte:
+                treffer = kandidat
+                treffer_ende = ende
+                break
+        if treffer is None:
+            return [wert.strip() for wert in text.split(',') if wert.strip()]
+        werte.append(treffer)
+        index = treffer_ende
+    return werte
+
+
+def normalisiere_multiple_choice_sessionwert(antwort, option_values):
+    """Normalisiert gespeicherte Multiple-Choice-Werte fuer erneutes Rendering."""
+    if isinstance(antwort, list):
+        return normalisiere_antwortwerte(antwort)
+    if isinstance(antwort, str):
+        text = antwort.strip()
+        if not text:
+            return []
+        if text in option_values:
+            return [text]
+        werte = normalisiere_antwortwerte(text)
+        if len(werte) == 1 and ',' in werte[0]:
+            legacy_werte = zerlege_legacy_werte(werte[0], option_values)
+            if all(wert in option_values for wert in legacy_werte):
+                return legacy_werte
+        return werte
+    return []
+
+
+def parse_csv_antwort(antwort):
+    """Liest JSON-Array-Antworten aus CSV-Feldern wieder als Liste."""
+    werte = normalisiere_antwortwerte(antwort)
+    if isinstance(antwort, str) and antwort.strip().startswith("[") and antwort.strip().endswith("]"):
+        return werte
+    return antwort
+
+
+def formatiere_export_antwort(antwort):
+    """Serialisiert Listenantworten eindeutig fuer CSV-Exports."""
+    if isinstance(antwort, list):
+        return json.dumps(normalisiere_antwortwerte(antwort), ensure_ascii=False, separators=(",", ":"))
+    return antwort
+
+
 def lese_antwort_aus_formular(frage):
     """Liest die Antwort für eine Frage typgerecht aus dem Formular.
     Behandelt Mehrfachauswahl (Checkboxen) korrekt via getlist().
-    Speicherformat für multiple_choice: kommaseparierter String (vgl. Kap. 13)."""
+    Speicherformat für multiple_choice: Liste von Option-Values (vgl. Kap. 13)."""
     typ = frage.get('type', 'text')
     if typ == 'multiple_choice':
-        # Checkbox: mehrere Werte möglich â†’ als kommaseparierter String speichern
-        werte = request.form.getlist('answer')
-        return ','.join(werte)  # z.B. "opt1,opt3"
+        # Checkbox: mehrere Werte moeglich. Als Liste bleiben Kommata in Optionswerten erhalten.
+        return [wert.strip() for wert in request.form.getlist('answer') if wert.strip()]
     else:
         # text, single_choice, rating: genau ein Wert
         return request.form.get('answer', '').strip()
@@ -161,7 +243,7 @@ def pruefe_pflichtfeld(frage, antwort):
     HTML5-required gilt nur als visuelle Hilfe â€“ nie als Sicherheitsmerkmal!"""
     if not frage.get('required', False):
         return None  # Keine Pflichtfrage â†’ immer gültig
-    if not antwort or not antwort.strip():
+    if antwort_ist_leer(antwort):
         typ = frage.get('type', 'text')
         if typ == 'rating':
             return "Bitte geben Sie eine Bewertung (1â€“5 Sterne) ab."
@@ -177,8 +259,8 @@ def pruefe_payload_integritaet(survey_data, answers):
     fehlende = []
     for frage in survey_data.get('questions', []):
         if frage.get('required', False):
-            antwort = answers.get(frage['id'], '').strip()
-            if not antwort:
+            antwort = answers.get(frage['id'], '')
+            if antwort_ist_leer(antwort):
                 fehlende.append(frage['id'])
     return fehlende
 
@@ -186,7 +268,7 @@ def ist_bereits_teilgenommen(survey_id):
     """Prüft den Missbrauchsschutz-Cookie (vgl. requirements.md Kap. 10).
     Gibt True zurück, wenn der Nutzer an dieser Umfrage bereits teilgenommen hat."""
     cookie_name = f"survey_completed_{survey_id}"
-    return request.cookies.get(cookie_name) == "true"
+    return request.cookies.get(cookie_name) == "saved"
 
 def berechne_statistiken(umfragen, ergebnisse):
     """Berechnet Antworthäufigkeiten für Multiple-Choice-Fragen aller Umfragen.
@@ -220,10 +302,22 @@ def berechne_statistiken(umfragen, ergebnisse):
                 if ergebnis.get('survey_id') != sid:
                     continue
                 rohwert = ergebnis.get('answers', {}).get(fid, '')
-                if not rohwert:
+                if antwort_ist_leer(rohwert):
                     continue
-                # multiple_choice: kommasepariert aufsplitten
-                einzelwerte = [v.strip() for v in rohwert.split(',')] if ',' in rohwert else [rohwert]
+                if frage.get('type') == 'multiple_choice':
+                    einzelwerte = normalisiere_antwortwerte(rohwert)
+                    erlaubte_werte = {option['value'] for option in frage.get('options', [])}
+                    if (
+                        isinstance(rohwert, str)
+                        and len(einzelwerte) == 1
+                        and einzelwerte[0] not in erlaubte_werte
+                        and ',' in einzelwerte[0]
+                    ):
+                        legacy_werte = zerlege_legacy_werte(einzelwerte[0], erlaubte_werte)
+                        if all(wert in erlaubte_werte for wert in legacy_werte):
+                            einzelwerte = legacy_werte
+                else:
+                    einzelwerte = [str(rohwert).strip()]
                 for wert in einzelwerte:
                     # Wert auf Optionstext mappen
                     angezeigter_text = wert  # Fallback: Rohwert anzeigen
@@ -343,6 +437,9 @@ def survey():
 
     current_question = questions[angefragter_step]
     saved_answer = session.get('survey_answers', {}).get(current_question['id'], '')
+    if current_question.get('type') == 'multiple_choice':
+        option_values = {option['value'] for option in current_question.get('options', [])}
+        saved_answer = normalisiere_multiple_choice_sessionwert(saved_answer, option_values)
 
     return render_template('index.html',
                            survey=survey_data,
@@ -442,10 +539,15 @@ def survey_back():
     role        = request.form.get('role', 'student')
     step        = request.form.get('step', 0, type=int)
     question_id = request.form.get('question_id', '')
-    answer      = request.form.get('answer', '').strip()
+    survey_data = session.get('survey_data')
+    questions   = survey_data.get('questions', []) if survey_data else []
+    if 0 <= step < len(questions):
+        answer = lese_antwort_aus_formular(questions[step])
+    else:
+        answer = request.form.get('answer', '').strip()
 
     # Antwort auch beim Zurückgehen speichern (falls bereits ausgefüllt)
-    if answer:
+    if not antwort_ist_leer(answer):
         answers = session.get('survey_answers', {})
         answers[question_id] = answer
         session['survey_answers'] = answers
@@ -474,6 +576,9 @@ def survey_submit():
     if not survey_data:
         flash("Keine Umfragedaten gefunden. Bitte starten Sie erneut.")
         return redirect(url_for('index'))
+
+    questions = survey_data.get('questions', [])
+    letzter_step = max(len(questions) - 1, 0)
 
     # -------------------------------------------------------
     # Payload-Integrität prüfen: Alle Pflichtfelder beantwortet?
@@ -506,13 +611,27 @@ def survey_submit():
     }
 
     try:
-        requests.post(
+        antwort = requests.post(
             f"{BACKEND_API_URL}/results",
             json=payload,
-            headers=get_auth_headers()
+            headers=get_auth_headers(),
+            timeout=5
         )
-    except Exception as e:
+        if not antwort.ok:
+            meldung = "Unbekannter Fehler"
+            try:
+                meldung = antwort.json().get("message", meldung)
+            except ValueError:
+                if antwort.text:
+                    meldung = antwort.text[:200]
+            flash(f"Ergebnisse konnten nicht gespeichert werden: {meldung}", "error")
+            session['survey_max_step'] = letzter_step
+            return redirect(url_for('survey', role=role, step=letzter_step))
+    except requests.RequestException as e:
         print(f"Warnung: Fehler beim Senden der Ergebnisse ({e}).")
+        flash("Ergebnisse konnten nicht gespeichert werden, weil das Backend nicht erreichbar ist.", "error")
+        session['survey_max_step'] = letzter_step
+        return redirect(url_for('survey', role=role, step=letzter_step))
 
     # -------------------------------------------------------
     # Session-Daten der abgeschlossenen Umfrage bereinigen
@@ -525,13 +644,13 @@ def survey_submit():
 
     # -------------------------------------------------------
     # Missbrauchsschutz-Cookie setzen (30 Tage, vgl. Kap. 10)
-    # survey_completed_<survey_id>=true verhindert erneute Teilnahme
+    # survey_completed_<survey_id>=saved verhindert erneute Teilnahme
     # -------------------------------------------------------
     antwort = render_template('success.html')
     response = app.make_response(antwort)
     response.set_cookie(
         key=f"survey_completed_{survey_id}",
-        value="true",
+        value="saved",
         max_age=30 * 24 * 60 * 60,  # 30 Tage in Sekunden
         httponly=True,               # Nicht per JavaScript auslesbar
         samesite='Lax'
@@ -604,7 +723,7 @@ def lade_ergebnisse():
                         "survey_id": survey_id,
                         "answers": {}
                     }
-                ergebnisse_dict[result_id]["answers"][question_id] = answer
+                ergebnisse_dict[result_id]["answers"][question_id] = parse_csv_antwort(answer)
             return list(ergebnisse_dict.values())
     except PermissionError:
         raise
@@ -637,7 +756,7 @@ def lade_ergebnisse():
                             "survey_id": survey_id,
                             "answers": {}
                         }
-                    ergebnisse_dict[result_id]["answers"][question_id] = answer
+                    ergebnisse_dict[result_id]["answers"][question_id] = parse_csv_antwort(answer)
     except Exception as e:
         print(f"Fallback-Fehler beim Lesen der CSVs: {e}")
 
@@ -698,7 +817,7 @@ def admin_results_export():
         if survey_id_filter and sid != survey_id_filter:
             continue
         for frage_id, antwort in ergebnis.get('answers', {}).items():
-            schreiber.writerow([eid, zeitpunkt, sid, frage_id, antwort])
+            schreiber.writerow([eid, zeitpunkt, sid, frage_id, formatiere_export_antwort(antwort)])
 
     # UTF-8 mit BOM für korrekte Darstellung in Excel (ü, ä, ö)
     csv_inhalt = '\ufeff' + ausgabe.getvalue()

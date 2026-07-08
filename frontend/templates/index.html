@@ -112,9 +112,17 @@
 
             <p class="question-label">{{ question.label }}</p>
             <div class="options">
+                {% set option_values = question.options | map(attribute='value') | list %}
+                {% if saved_answer is string %}
+                    {% if saved_answer in option_values %}
+                        {% set saved_list = [saved_answer] %}
+                    {% else %}
+                        {% set saved_list = saved_answer.split(',') if saved_answer else [] %}
+                    {% endif %}
+                {% else %}
+                    {% set saved_list = saved_answer if saved_answer else [] %}
+                {% endif %}
                 {% for opt in question.options %}
-                {# Gespeicherte Antworten als Liste ermitteln (kommasepariert gespeichert) #}
-                {% set saved_list = saved_answer.split(',') if saved_answer else [] %}
                 <label class="option-label {% if opt.value in saved_list %}option-selected{% endif %}" style="cursor:pointer;">
                     <input type="checkbox" name="answer" value="{{ opt.value }}"
                            {% if opt.value in saved_list %}checked{% endif %}>

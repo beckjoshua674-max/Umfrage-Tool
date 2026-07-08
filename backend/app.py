@@ -160,6 +160,57 @@ def validiere_umfrage_definition(payload):
     return None
 
 
+def antwort_ist_leer(antwort):
+    """Prueft leere Antworten typunabhaengig."""
+    if antwort is None:
+        return True
+    if isinstance(antwort, list):
+        return not any(str(wert).strip() for wert in antwort)
+    return str(antwort).strip() == ""
+
+
+def normalisiere_multiple_choice_antwort(antwort, erlaubte_werte):
+    """Gibt Multiple-Choice-Antworten als Werteliste zurueck."""
+    if isinstance(antwort, list):
+        return [str(wert).strip() for wert in antwort if str(wert).strip()]
+    if isinstance(antwort, str):
+        if not antwort.strip():
+            return []
+        if antwort in erlaubte_werte:
+            return [antwort]
+        return zerlege_kommagetrennte_werte(antwort, erlaubte_werte)
+    return None
+
+
+def zerlege_kommagetrennte_werte(text, erlaubte_werte):
+    """Rekonstruiert alte kommagetrennte Antworten anhand erlaubter Werte."""
+    teile = [teil.strip() for teil in text.split(",")]
+    werte = []
+    index = 0
+    while index < len(teile):
+        treffer = None
+        treffer_ende = index + 1
+        for ende in range(len(teile), index, -1):
+            kandidat = ",".join(teile[index:ende]).strip()
+            if kandidat in erlaubte_werte:
+                treffer = kandidat
+                treffer_ende = ende
+                break
+        if treffer is None:
+            return [wert.strip() for wert in text.split(",") if wert.strip()]
+        werte.append(treffer)
+        index = treffer_ende
+    return werte
+
+
+def formatiere_antwort_fuer_csv(antwort):
+    """Serialisiert Listenantworten eindeutig fuer die CSV-Ablage."""
+    if isinstance(antwort, list):
+        werte = [str(wert).strip() for wert in antwort if str(wert).strip()]
+        return json.dumps(werte, ensure_ascii=False, separators=(",", ":"))
+    return antwort
+
+
 def validiere_ergebnis_payload(payload):
     """Validiert Antworten gegen die gespeicherte Umfragedefinition."""
     if not isinstance(payload, dict):
@@ -180,7 +231,7 @@ def validiere_ergebnis_payload(payload):
 
     for frage_id, frage in fragen.items():
         antwort = answers.get(frage_id)
-        if frage.get("required") and (antwort is None or str(antwort).strip() == ""):
+        if frage.get("required") and antwort_ist_leer(antwort):
             return f"Das Pflichtfeld '{frage_id}' wurde nicht ausgefuellt."
 
     for frage_id, antwort in answers.items():
@@ -189,7 +240,7 @@ def validiere_ergebnis_payload(payload):
 
         frage = fragen[frage_id]
         typ = frage.get("type")
-        if antwort is None or str(antwort).strip() == "":
+        if antwort_ist_leer(antwort):
             continue
 
         if typ == "single_choice":
@@ -198,7 +249,9 @@ def validiere_ergebnis_payload(payload):
                 return f"Ungueltiger Wert fuer Frage '{frage_id}'."
         elif typ == "multiple_choice":
             erlaubte_werte = {option["value"] for option in frage.get("options", [])}
-            einzelwerte = [wert.strip() for wert in str(antwort).split(",") if wert.strip()]
+            einzelwerte = normalisiere_multiple_choice_antwort(antwort, erlaubte_werte)
+            if einzelwerte is None:
+                return f"Antwort fuer Frage '{frage_id}' muss eine Liste oder Text sein."
             for wert in einzelwerte:
                 if wert not in erlaubte_werte:
                     return f"Ungueltige Option '{wert}' fuer Frage '{frage_id}'."
@@ -228,7 +281,7 @@ def schreibe_ergebnis_csv(payload):
         if neue_datei:
             writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
         for frage_id, antwort in payload["answers"].items():
-            writer.writerow([result_id, timestamp, payload["survey_id"], frage_id, antwort])
+            writer.writerow([result_id, timestamp, payload["survey_id"], frage_id, formatiere_antwort_fuer_csv(antwort)])
 
     return result_id
 

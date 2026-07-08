@@ -83,7 +83,7 @@ Die Antworten werden als JSON-Objekt übertragen.
   "answers": {
     "q1": "Es hilft mir sehr bei der Prüfungsvorbereitung.",
     "q2": "täglich",
-    "q3": "prüfungsvorbereitung,recherche",
+    "q3": ["prüfungsvorbereitung", "recherche"],
     "q4": "5"
   }
 }
@@ -112,7 +112,7 @@ Der Client durchläuft folgende Phasen:
 4. **Completed**: Erfolgreiches Senden, Bereinigung der Session-Daten und Setzen des Cookies.
 
 ### 3.3 Speicher und Sicherheit
-* **Missbrauchsschutz (Completed-Cookie):** Nach erfolgreichem Absenden wird ein Cookie namens `survey_completed_<survey_id>` gesetzt (Ablaufzeit: 30 Tage, `httponly=True`, `samesite=Lax`). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt die Danke-Seite.
+* **Missbrauchsschutz (Completed-Cookie):** Nach erfolgreichem Absenden wird ein Cookie namens `survey_completed_<survey_id>` mit dem Wert `saved` gesetzt (Ablaufzeit: 30 Tage, `httponly=True`, `samesite=Lax`). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt die Danke-Seite.
 * **JWT-Verarbeitung:** Das Admin-JWT wird im Authorization-Header (`Authorization: Bearer <token>`) mitgeführt. Bei einer HTTP `401 Unauthorized` Antwort des Servers wird die Client-Session sofort verworfen und ein Redirect zur Login-Seite durchgeführt.
 * **Ausschließen von Client-Caching auf Seitenebene:** Die Frontend-Route `/admin` liefert in ihrer HTTP-Antwort explizit den Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` aus, um ein Caching der gesamten HTML-Seite durch den Browser zu blockieren.
 
@@ -130,6 +130,7 @@ Der Client durchläuft folgende Phasen:
 * **Umfragen:** Persistierung als JSON-Dateien im Backend-Verzeichnis.
 * **Ergebnisse:** Persistierung relational in CSV-Dateien (`results_<survey_id>.csv`). Der Speicherprozess arbeitet strikt append-only (Immutability by Design). Ein Ändern oder Löschen von Datensätzen via API ist nicht zulässig.
 * Das Spaltenformat der CSV lautet: `result_id;timestamp;survey_id;question_id;answer`.
+* Antworten vom Typ `multiple_choice` werden im JSON-Payload als Array von Option-`value`-Strings uebertragen. In der CSV-Spalte `answer` werden solche Listenantworten als JSON-Array serialisiert, damit Kommata in Optionswerten nicht als Trennzeichen fehlinterpretiert werden.
 
 ### 4.2 Serverseitige Strikt-Validierung (Single Source of Truth)
 Bei einem `POST /api/results` validiert der Server zwingend:

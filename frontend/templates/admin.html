@@ -113,11 +113,17 @@
                     {{ ergebnisse|length }} Antwort(en) gesamt
                 </p>
             </div>
-            <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-               style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
-               onclick="handleCsvExport(event, 'results')">
-                CSV exportieren
-            </a>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <a href="{{ url_for('admin') }}" class="btn-secondary"
+                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;">
+                    Aktualisieren
+                </a>
+                <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
+                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+                   onclick="handleCsvExport(event, 'results')">
+                    CSV exportieren
+                </a>
+            </div>
         </div>
         <div class="card-body">
             <!-- Umfrage-Filter -->
@@ -164,7 +170,13 @@
                                         {% for key, val in r.get('answers', {}).items() %}
                                         <li class="antwort-item {% if loop.index > 2 %}versteckt{% endif %}">
                                             <span class="q-key">{{ key }}:</span>
-                                            <span class="q-val">{{ val }}</span>
+                                            <span class="q-val">
+                                                {% if val is string %}
+                                                    {{ val }}
+                                                {% else %}
+                                                    {{ val | join(', ') }}
+                                                {% endif %}
+                                            </span>
                                         </li>
                                         {% endfor %}
                                     </ul>
