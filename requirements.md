@@ -13,14 +13,14 @@ Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (B
 |---|---|---|---|---|
 | **Health** | `/api/health` | `GET` | Überprüfung der Backend-Erreichbarkeit | `200 OK`, `503 Service Unavailable` |
 | **Login** | `/api/login` | `POST` | Admin-Authentifizierung via Credentials | `200 OK` (liefert JWT), `401 Unauthorized` |
-| **Survey** | `/api/survey` | `GET` | Abruf der Umfragedefinition (optional mit `?role=...`) | `200 OK`, `404 Not Found` |
+| **Survey** | `/api/surveys` | `GET` | Abruf der Umfragedefinition (optional mit `?role=...`) | `200 OK`, `404 Not Found` |
 | **Survey** | `/api/surveys` | `POST` | Erstellen oder Ändern einer Umfragedefinition (Admin, geschützt) | `201 Created`, `400 Bad Request`, `401 Unauthorized` |
 | **Results** | `/api/results` | `POST` | Einreichen von Umfrageergebnissen | `201 Created`, `400 Bad Request` |
 | **Results** | `/api/results` | `GET` | Abruf aller eingegangenen Ergebnisse für den Admin (geschützt) | `200 OK`, `401 Unauthorized` |
 | **Survey** | `/api/surveys/{survey_id}` | `DELETE` | Löschen einer Umfragedefinition (Admin, geschützt) | `204 No Content`, `401 Unauthorized`, `404 Not Found` |
 
 ### 1.2 Sicherheitsvorgaben (JWT-Token und Rollen)
-* **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/survey` (mit optionaler Rolle), `POST /api/results`.
+* **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/surveys` (mit optionaler Rolle), `POST /api/results`.
 * **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
 * Bei fehlendem oder ungültigem Token antwortet der Server mit `401 Unauthorized`. Besitzt das Token nicht die Rolle `admin`, antwortet der Server mit `403 Forbidden`.
 * **Prävention von Browser-Caching (Cache-Busting):** Um die Anzeige veralteter Datensätze im Dashboard zu verhindern, sendet das Backend bei `GET /api/results` den HTTP-Response-Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`. Das Frontend hängt zusätzlich bei jedem API-Aufruf an diesen Endpunkt einen dynamischen Zeitstempel-Parameter (`?t=Zeitstempel`) als Cache-Buster an.
@@ -29,7 +29,7 @@ Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (B
 
 ## 2. Datenmodelle und Payloads
 
-### 2.1 Umfragedefinition (GET `/api/survey`)
+### 2.1 Umfragedefinition (GET `/api/surveys`)
 Die Definition einer Umfrage wird im JSON-Format übertragen und enthält Metadaten sowie ein Fragen-Array.
 
 ```json
@@ -158,7 +158,7 @@ Die Darstellung im Tab "Ergebnisse anzeigen" erfolgt in folgender hierarchischer
 
 ### 5.2 Bereich Umfragen bearbeiten
 Das Bearbeiten und Aktualisieren bestehender Umfragen wird wie folgt geregelt:
-1. Der Client lädt die bestehende Struktur via `GET /api/survey?role=admin` (oder mit entsprechender Rolle).
+1. Der Client lädt die bestehende Struktur via `GET /api/surveys?role=admin` (oder mit entsprechender Rolle).
 2. Nach Modifikation im Formular-Editor sendet der Client die aktualisierte Struktur via `POST /api/surveys` an das Backend.
 3. Das Backend nimmt den Request unter JWT-Absicherung entgegen, validiert die Definition und überschreibt die bestehende JSON-Datei im Dateisystem.
 
@@ -208,3 +208,38 @@ Für alle Systemmeldungen der Anwendung (wie Download-Bestätigungen, Pflichtfel
 
 ### 7.4 Positionierung
 * Alle globalen Statusmeldungen werden einheitlich ganz oben im sichtbaren Bereich der Benutzeroberfläche platziert.
+
+---
+
+## 8. Erweiterte Spezifikation (Version 1.5)
+
+### 8.1 Zusätzliche Fragetypen
+Das System unterstützt neben den Standardtypen zwei zusätzliche Fragetypen:
+* **Typ `yes_no`**: Ja/Nein-Auswahl. Wird im Frontend für Teilnehmer als zwei beschriftete Auswahlknöpfe ("Ja" und "Nein") dargestellt. Das Antwort-Payload enthält den String "ja" oder "nein". Die statistische Auswertung im Administratorbereich zählt die Häufigkeiten beider Antwortoptionen und zeigt sie im Balkendiagramm an.
+* **Typ `date`**: Datumsauswahl. Ermöglicht dem Teilnehmer die Angabe eines Datums über ein HTML5-Datumseingabefeld (`<input type="date">`). Die Validierung auf Client- und Serverseite stellt sicher, dass ein gültiges Datum eingegeben wird. Im Administrator-Dashboard werden die Datumsangaben gesammelt in einer Liste analog zu Freitextantworten dargestellt.
+
+### 8.2 Umfrage-Vorlagen (Templates)
+Im Tab "Umfrage erstellen" (Tab 3) steht eine Sektion zum Laden vordefinierter Vorlagen zur Verfügung:
+* **Studentenevaluation**: Befüllt das Formular automatisch mit Fragen zur Nützlichkeit von Übungsmaterialien, der Struktur der Vorlesung, Weiterempfehlung, dem Ausfülldatum und Freitext-Anmerkungen.
+* **Professorenevaluation**: Befüllt das Formular automatisch mit Fragen zu Forschungsressourcen, administrativer Unterstützung, IT-Anfragen und Infrastruktur-Anregungen.
+* Das Laden einer Vorlage überschreibt nach einer Bestätigung durch den Administrator den aktuellen Zustand des Formulars.
+
+### 8.3 Single-Page-Application-Verhalten (SPA) und Ladeanzeige
+* **Lade-Indikator**: Bei jedem asynchronen Ladevorgang, insbesondere beim Nachladen einer Umfragedefinition im Dropdown des Tab "Umfrage bearbeiten", wird das globale Lade-Overlay ("Bitte warten...") angezeigt, um eine reibungslose Rückmeldung zu geben.
+* **Seiten-Reload-Freies Speichern und Aktualisieren**: Alle administrativen Aktionen – wie das Speichern von Änderungen an einer Umfrage, das Erstellen oder Löschen einer Umfrage sowie das Importieren von Umfragedefinitionen – werden asynchron (via Fetch-API) ausgeführt. Das Backend speichert die geänderten Daten persistent im Dateisystem. Nach erfolgreichem Abschluss wird der Zustand der Benutzeroberfläche (Auswahl-Dropdowns, Ergebnisse, Auswertungen) per DOM-Ersatz aktualisiert, ohne dass die gesamte Seite neu geladen wird.
+* **Dynamische Aktualisierung**: Die Schaltflächen "Aktualisieren" im Dashboard führen anstelle eines vollständigen Seiten-Reloads eine asynchrone Aktualisierung der Daten durch.
+
+### 8.4 Struktur-Export im Editor
+Im Tab "Umfrage bearbeiten" (Tab 2) befindet sich neben der Schaltfläche "Änderungen speichern" eine Option "Struktur exportieren". Diese generiert eine JSON-Datei mit der vollständigen Definition der aktuell geladenen Umfrage (inklusive IDs, Typen, Labels und Optionen) und startet den Browser-Download dieser Datei.
+
+### 8.5 Teilnahme-Statistik
+Am oberen Rand des Auswertungs-Tabs (Tab 4) wird ein übersichtliches Panel mit Teilnahme-Statistiken angezeigt. Dieses Panel visualisiert:
+* Die Gesamtzahl aller im System eingegangenen Fragebögen.
+* Die spezifische Beteiligungszahl pro definierter Umfrage.
+* Bei aktiver Filterung nach einer bestimmten Umfrage werden die Statistik-Karten der übrigen Umfragen automatisch ausgeblendet.
+
+### 8.6 Visuelle Differenzierung von Kontrollkästchen und Auswahlknöpfen
+Zur Steigerung der visuellen Klarheit wird eine strikte Trennung vorgenommen:
+* **Mehrfachauswahl (multiple_choice)** verwendet ein eckiges Kontrollkästchen (abgerundetes Quadrat), das bei Auswahl mit der Primärfarbe gefüllt wird und ein weißes Kreuzzeichen "X" zeigt.
+* **Einzelauswahl (single_choice, yes_no)** verwendet einen runden Auswahlknopf (Radio-Circle), der bei Auswahl einen farbigen Punkt in der Mitte anzeigt.
+

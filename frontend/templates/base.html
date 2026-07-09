@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Ask Alma - Hochschule Kehl{% endblock %}</title>
     <!-- Verweist auf den static-Ordner in Flask -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5.2">
 </head>
 <body>
     <header class="app-header">
@@ -161,5 +161,52 @@
             <p>&copy; 2026 Hochschule für öffentliche Verwaltung Kehl - Verteilte Systeme</p>
         </div>
     </footer>
+
+    <!-- Button zum Hochscrollen -->
+    <button id="btn-scroll-to-top" title="Nach oben scrollen" aria-label="Nach oben scrollen">
+        &#8593;
+    </button>
+
+    <!-- Globaler Lade-Indikator -->
+    <div id="global-loading-spinner" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.75); z-index:100000; align-items:center; justify-content:center; flex-direction:column; gap:15px; backdrop-filter: blur(2px);">
+        <div class="loading-spinner-circle"></div>
+        <span style="font-weight: 500; color: var(--color-hs-kehl); font-size: 1.05rem; font-family: inherit;">Wird geladen...</span>
+    </div>
+
+    <script>
+    (function() {
+        // 1. Scroll-to-Top Logik
+        var scrollBtn = document.getElementById('btn-scroll-to-top');
+        if (scrollBtn) {
+            window.addEventListener('scroll', function() {
+                if (window.scrollY > 250) {
+                    scrollBtn.style.display = 'block';
+                } else {
+                    scrollBtn.style.display = 'none';
+                }
+            });
+            scrollBtn.addEventListener('click', function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
+        // 2. Lade-Spinner Logik
+        window.addEventListener('beforeunload', function(e) {
+            var activeElement = document.activeElement;
+            if (activeElement) {
+                var href = activeElement.getAttribute('href') || '';
+                var target = activeElement.getAttribute('target') || '';
+                // Keine Lade-Anzeige bei CSV-Exporten oder neuen Tabs
+                if (href.indexOf('export') !== -1 || target === '_blank') {
+                    return;
+                }
+            }
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'flex';
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

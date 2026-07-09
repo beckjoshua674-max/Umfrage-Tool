@@ -28,6 +28,19 @@ def lade_admin_zugangsdaten():
             return json.load(f)
     except Exception:
         return {}
+# Versuche .env-Datei einzulesen, falls vorhanden
+env_pfad = BASE_DIR / ".env"
+if env_pfad.exists():
+    try:
+        with env_pfad.open("r", encoding="utf-8") as env_file:
+            for zeile in env_file:
+                zeile = zeile.strip()
+                if zeile and not zeile.startswith("#") and "=" in zeile:
+                    k, v = zeile.split("=", 1)
+                    os.environ[k.strip()] = v.strip().strip('"').strip("'")
+    except Exception as e:
+        print(f"Fehler beim Laden der .env Datei: {e}")
+
 JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret").encode("utf-8")
 JWT_LIFETIME_SECONDS = 60 * 60 * 8
 
@@ -158,7 +171,7 @@ def validiere_umfrage_definition(payload):
     if not isinstance(payload["questions"], list):
         return "Das Feld 'questions' muss eine Liste sein."
 
-    erlaubte_typen = {"text", "single_choice", "multiple_choice", "rating"}
+    erlaubte_typen = {"text", "single_choice", "multiple_choice", "rating", "yes_no", "date"}
     for index, frage in enumerate(payload["questions"], start=1):
         if not isinstance(frage, dict):
             return f"Frage {index} muss ein Objekt sein."
@@ -237,10 +250,13 @@ def zerlege_kommagetrennte_werte(text, erlaubte_werte):
 
 
 def formatiere_antwort_fuer_csv(antwort):
-    """Serialisiert Listenantworten eindeutig fuer die CSV-Ablage."""
+    """Serialisiert Listenantworten eindeutig fuer die CSV-Ablage und bereinigt Trennzeichen."""
     if isinstance(antwort, list):
         werte = [str(wert).strip() for wert in antwort if str(wert).strip()]
-        return json.dumps(werte, ensure_ascii=False, separators=(",", ":"))
+        werte_clean = [w.replace(';', ',').replace('\n', ' ').replace('\r', ' ') for w in werte]
+        return json.dumps(werte_clean, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(antwort, str):
+        return antwort.replace(';', ',').replace('\n', ' ').replace('\r', ' ')
     return antwort
 
 
@@ -297,24 +313,54 @@ def validiere_ergebnis_payload(payload):
                 return f"Bewertung fuer Frage '{frage_id}' muss zwischen 1 und 5 liegen."
         elif typ == "text" and not isinstance(antwort, str):
             return f"Antwort fuer Frage '{frage_id}' muss Text sein."
+        elif typ == "yes_no" and antwort not in ("ja", "nein"):
+            return f"Wert fuer Ja/Nein-Frage '{frage_id}' muss 'ja' oder 'nein' sein."
+        elif typ == "date" and (not isinstance(antwort, str) or not antwort.strip()):
+            return f"Antwort fuer Datum-Frage '{frage_id}' muss ein gueltiges Datum sein."
 
     return None
 
 
+import contextlib
+import time
+
+@contextlib.contextmanager
+def datei_sperre_einfach(lock_pfad):
+    """Einfache plattformübergreifende Dateisperre via Lock-Datei."""
+    start_time = time.time()
+    while True:
+        try:
+            fd = os.open(lock_pfad, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            break
+        except FileExistsError:
+            if time.time() - start_time > 5.0:
+                break
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            os.remove(lock_pfad)
+        except Exception:
+            pass
+
 def schreibe_ergebnis_csv(payload):
-    """Speichert Antworten append-only in results_<survey_id>.csv."""
+    """Speichert Antworten append-only in results_<survey_id>.csv mit Dateisperre."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     result_id = str(uuid.uuid4())
     timestamp = payload.get("timestamp") or datetime.datetime.utcnow().isoformat() + "Z"
     csv_pfad = DATA_DIR / f"results_{payload['survey_id']}.csv"
+    lock_pfad = DATA_DIR / f"results_{payload['survey_id']}.csv.lock"
     neue_datei = not csv_pfad.exists()
 
-    with csv_pfad.open("a", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        if neue_datei:
-            writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
-        for frage_id, antwort in payload["answers"].items():
-            writer.writerow([result_id, timestamp, payload["survey_id"], frage_id, formatiere_antwort_fuer_csv(antwort)])
+    with datei_sperre_einfach(lock_pfad):
+        with csv_pfad.open("a", encoding="utf-8", newline="") as file:
+            writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            if neue_datei:
+                writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
+            for frage_id, antwort in payload["answers"].items():
+                writer.writerow([result_id, timestamp, payload["survey_id"], frage_id, formatiere_antwort_fuer_csv(antwort)])
 
     return result_id
 
@@ -392,7 +438,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._sende_json(200, {"status": "ok", "service": "ask-alma-backend"})
             return
 
-        if pfad == "/api/survey":
+        if pfad == "/api/surveys":
             survey_id = query.get("survey_id", [""])[0]
             if survey_id:
                 _, umfrage = finde_umfrage_nach_id(survey_id)

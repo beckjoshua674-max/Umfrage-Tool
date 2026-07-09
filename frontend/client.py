@@ -11,8 +11,21 @@ import pathlib
 
 BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
 
+# Versuche .env-Datei einzulesen, falls vorhanden
+env_pfad = pathlib.Path(__file__).resolve().parent / ".env"
+if env_pfad.exists():
+    try:
+        with env_pfad.open("r", encoding="utf-8") as env_file:
+            for zeile in env_file:
+                zeile = zeile.strip()
+                if zeile and not zeile.startswith("#") and "=" in zeile:
+                    k, v = zeile.split("=", 1)
+                    os.environ[k.strip()] = v.strip().strip('"').strip("'")
+    except Exception as e:
+        print(f"Fehler beim Laden der .env Datei im Frontend: {e}")
+
 app = Flask(__name__)
-app.secret_key = 'ask-alma-secret-key-dev'
+app.secret_key = os.environ.get("ASK_ALMA_CLIENT_SECRET", "ask-alma-secret-key-dev")
 app.json.ensure_ascii = False
 app.config['JSON_AS_ASCII'] = False
 
@@ -31,6 +44,7 @@ def auto_logout_admin_on_leave():
 
 # Konfiguration: URL des echten Backends (wird später von Codex bereitgestellt)
 BACKEND_API_URL = "http://localhost:8000/api"
+DEV_MODE = os.environ.get("ASK_ALMA_DEV_MODE", "false").lower() == "true"
 
 # ==============================================================
 # Helper & Authentifizierung (REST-Token via Web-Session)
@@ -288,19 +302,47 @@ def berechne_statistiken(umfragen, ergebnisse):
     for umfrage in umfragen:
         sid = umfrage.get('survey_id', '')
         statistiken[sid] = {}
-        # Nur Fragen mit Optionen auswerten (single_choice, multiple_choice, rating)
         for frage in umfrage.get('questions', []):
-            if frage.get('type') not in ('single_choice', 'multiple_choice', 'rating'):
-                continue
             fid   = frage['id']
             label = frage.get('label', fid)
-            # Optionen-Map aufbauen: value â†’ Anzahl
+            typ   = frage.get('type', 'text')
+
+            if typ not in ('single_choice', 'multiple_choice', 'rating', 'text', 'yes_no', 'date'):
+                continue
+
+            if typ in ('text', 'date'):
+                antworten = []
+                for ergebnis in ergebnisse:
+                    if ergebnis.get('survey_id') != sid:
+                        continue
+                    answers = ergebnis.get('answers', {})
+                    rohwert = answers.get(fid)
+                    if rohwert is None:
+                        # Legacy-Kompatibilität
+                        if fid.startswith('q'):
+                            alt_fid = 'p' + fid[1:]
+                            rohwert = answers.get(alt_fid)
+                        elif fid.startswith('p'):
+                            alt_fid = 'q' + fid[1:]
+                            rohwert = answers.get(alt_fid)
+                    if rohwert is not None and str(rohwert).strip():
+                        antworten.append(str(rohwert).strip())
+                statistiken[sid][label] = {
+                    '_typ': 'text',
+                    '_antworten': antworten
+                }
+                continue
+
+            # Optionen-Map aufbauen: value -> Anzahl
             zaehler = {}
-            if frage.get('options'):
+            if typ == 'yes_no':
+                zaehler['Ja'] = 0
+                zaehler['Nein'] = 0
+            elif frage.get('options'):
                 for opt in frage['options']:
                     zaehler[opt['text']] = 0
             else:
-                # rating: Optionen 1â€“5
+                # rating: Optionen 1-5
                 for i in range(1, 6):
                     zaehler[str(i)] = 0
 
@@ -361,7 +403,12 @@ def berechne_statistiken(umfragen, ergebnisse):
                         sicherer_wert = LEGACY_MAPPING[sicherer_wert]
                     # Wert auf Optionstext mappen
                     angezeigter_text = sicherer_wert  # Fallback
-                    if frage.get('options'):
+                    if typ == 'yes_no':
+                        if sicherer_wert.lower() == 'ja':
+                            angezeigter_text = 'Ja'
+                        elif sicherer_wert.lower() == 'nein':
+                            angezeigter_text = 'Nein'
+                    elif frage.get('options'):
                         for opt in frage['options']:
                             if opt['value'] == sicherer_wert or opt['text'] == sicherer_wert:
                                 angezeigter_text = opt['text']
@@ -414,7 +461,7 @@ def survey():
     # -------------------------------------------------------
     if 'survey_data' not in session or (survey_id and session.get('survey_version_id') != survey_id):
         try:
-            url = f"{BACKEND_API_URL}/survey"
+            url = f"{BACKEND_API_URL}/surveys"
             if survey_id:
                 url += f"?survey_id={survey_id}"
             response = requests.get(
@@ -768,8 +815,10 @@ def lade_ergebnisse():
         raise
     except Exception as e:
         print(f"Fehler beim Laden/Parsen der API-Ergebnisse: {e}")
+        if not DEV_MODE:
+            raise e
 
-    # Versuch 2: Direkt aus dem Ergebnis-Verzeichnis / CSV-Dateien lesen (Entwicklungsmodus Fallback)
+    # Versuch 2: Direkt aus dem Ergebnis-Verzeichnis / CSV-Dateien lesen (nur im Entwicklungsmodus)
     import glob
     ergebnisse_dict = {}
     try:
@@ -814,12 +863,44 @@ def admin():
         return redirect(url_for('login_page'))
 
     alle_umfragen = lade_alle_umfragen_lokal()
+    aktive_ids = {u.get('survey_id') for u in alle_umfragen if u.get('survey_id')}
+    alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids]
+    
     # Antwortstatistiken für Balkengrafik serverseitig berechnen (kein JS, vgl. Kap. 12.4)
     alle_statistiken = berechne_statistiken(alle_umfragen, alle_ergebnisse)
+    
+    # Teilnahme-Statistiken berechnen
+    teilnahme_gesamt = len(alle_ergebnisse)
+    teilnahme_nach_umfrage = {u.get('survey_id'): 0 for u in alle_umfragen}
+    for r in alle_ergebnisse:
+        sid = r.get('survey_id')
+        if sid in teilnahme_nach_umfrage:
+            teilnahme_nach_umfrage[sid] += 1
+        else:
+            teilnahme_nach_umfrage[sid] = 1
+
+    # Fragen-Map fuer Klarnamen-Anzeige in Einzelergebnissen aufbauen
+    fragen_map = {}
+    for u in alle_umfragen:
+        sid = u.get('survey_id')
+        fragen_map[sid] = {}
+        for q in u.get('questions', []):
+            fragen_map[sid][q['id']] = q.get('label', q['id'])
+            # Legacy-Mapping
+            if q['id'].startswith('q'):
+                alt_id = 'p' + q['id'][1:]
+                fragen_map[sid][alt_id] = q.get('label', q['id'])
+            elif q['id'].startswith('p'):
+                alt_id = 'q' + q['id'][1:]
+                fragen_map[sid][alt_id] = q.get('label', q['id'])
+
     resp = make_response(render_template('admin.html',
                                          umfragen=alle_umfragen,
                                          ergebnisse=alle_ergebnisse,
-                                         statistiken=alle_statistiken))
+                                         statistiken=alle_statistiken,
+                                         teilnahme_gesamt=teilnahme_gesamt,
+                                         teilnahme_nach_umfrage=teilnahme_nach_umfrage,
+                                         fragen_map=fragen_map))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return resp
 
@@ -839,6 +920,9 @@ def admin_results_export():
     from flask import Response
 
     alle_ergebnisse = lade_ergebnisse()
+    alle_umfragen = lade_alle_umfragen_lokal()
+    aktive_ids = {u.get('survey_id') for u in alle_umfragen if u.get('survey_id')}
+    alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids]
 
     # CSV im Arbeitsspeicher aufbauen (kein temporäres File auf der Festplatte)
     ausgabe = io.StringIO()
@@ -868,7 +952,7 @@ def admin_results_export():
         headers={'Content-Disposition': f'attachment; filename="{dateiname}"'}
     )
 
-@app.route('/api/survey', methods=['GET'])
+@app.route('/api/surveys', methods=['GET'])
 @login_required
 def api_get_survey():
     """Proxy-Route zum Laden der JSON-Struktur einer Umfrage."""
@@ -877,7 +961,7 @@ def api_get_survey():
 
     # Vom Backend abrufen
     try:
-        url = f"{BACKEND_API_URL}/survey"
+        url = f"{BACKEND_API_URL}/surveys"
         if survey_id:
             url += f"?survey_id={survey_id}"
         response = requests.get(
@@ -890,10 +974,11 @@ def api_get_survey():
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen."}), 401, {"Content-Type": "application/json; charset=utf-8"}
         if response.ok:
             return response.text, 200, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception:
-        pass
+    except Exception as e:
+        if not DEV_MODE:
+            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
-    # Lokaler Fallback
+    # Lokaler Fallback (nur im Entwicklungsmodus)
     try:
         if survey_id:
             for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
@@ -950,14 +1035,11 @@ def survey_save_local():
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte neu anmelden."}), 401, {"Content-Type": "application/json; charset=utf-8"}
         # Wenn der Server antwortet (egal ob Erfolg oder Fehler), geben wir die Antwort zurück
         return antwort.text, antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
-    except requests.exceptions.ConnectionError:
-        # Nur bei echten Verbindungsproblemen (z.B. Backend offline) weichen wir auf lokales Speichern aus
-        pass
     except Exception as e:
-        print(f"Backend POST error: {e}")
-        pass
+        if not DEV_MODE:
+            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
-    # Versuch 2: Direkt ins Dateisystem schreiben (Entwicklungsmodus)
+    # Versuch 2: Direkt ins Dateisystem schreiben (nur im Entwicklungsmodus)
     try:
         with open(ziel_pfad, "w", encoding="utf-8") as f:
             json_mod.dump(nutzlast, f, ensure_ascii=False, indent=2)
@@ -987,10 +1069,11 @@ def survey_delete(survey_id):
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte neu anmelden."}), 401, {"Content-Type": "application/json; charset=utf-8"}
         if antwort.status_code == 204:
             return json_mod.dumps({"status": "deleted"}), 200, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception:
-        pass
+    except Exception as e:
+        if not DEV_MODE:
+            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
-    # Versuch 2: Direkt aus dem Dateisystem löschen (Entwicklungsmodus Fallback)
+    # Versuch 2: Direkt aus dem Dateisystem löschen (nur im Entwicklungsmodus)
     sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
     dateiname = f"survey_{sichere_id}.json"
     ziel_pfad = BACKEND_DATEN_PFAD / dateiname

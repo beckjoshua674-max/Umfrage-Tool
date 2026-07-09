@@ -1,23 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
 /* Corporate Design Colors (Hochschule Kehl) */
 :root {
-    --color-hs-kehl: #2160a6; /* Brand Primary - Hochschule Kehl */
-    --color-hs-kehl-dark: #18487e; /* Darker variant for hovers */
-    --color-text-dark: #2c3e50;
-    --color-text-light: #7f8c8d;
-    --color-background-grey: #f4f7f6;
+    --color-hs-kehl: #1e40af; /* Brand Primary - Hochschule Kehl (sleeker deep blue) */
+    --color-hs-kehl-dark: #1e3a8a; /* Darker variant for hovers */
+    --color-text-dark: #0f172a; /* Slate-900 for premium typography */
+    --color-text-light: #64748b; /* Slate-500 for clean subtle text */
+    --color-background-grey: #f8fafc; /* Slate-50 - premium soft background */
     --color-white: #ffffff;
-    --color-danger: #e74c3c;
-    --color-danger-dark: #c0392b;
-    --color-success: #27ae60;
-    --border-radius: 8px;
-    --spacing-md: 20px;
-    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --transition-speed: 0.25s;
+    --color-danger: #ef4444; /* Clean tailwind-style red */
+    --color-danger-dark: #b91c1c;
+    --color-success: #10b981; /* Clean tailwind-style emerald green */
+    --border-radius: 12px; /* Softer, more modern corners */
+    --spacing-md: 24px;
+    --box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+    --transition-speed: 0.2s;
 }
 
 /* Base Styles */
 body {
-    font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--color-background-grey);
     color: var(--color-text-dark);
     margin: 0;
@@ -240,7 +242,7 @@ main {
 }
 
 /* Buttons */
-.btn-primary, .btn-secondary, .btn-danger, .btn-outline-light {
+.btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-outline-light {
     display: inline-block;
     padding: 12px 24px;
     font-size: 1rem;
@@ -271,12 +273,24 @@ main {
     background-color: #7f8c8d;
 }
 
+.btn-success {
+    background-color: #2ecc71;
+    color: var(--color-white);
+}
+.btn-success:hover {
+    background-color: #27ae60;
+    box-shadow: 0 4px 8px rgba(46, 204, 113, 0.3);
+    transform: translateY(-1px);
+}
+
 .btn-danger {
     background-color: var(--color-danger);
     color: var(--color-white);
 }
 .btn-danger:hover {
     background-color: var(--color-danger-dark);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    transform: translateY(-1px);
 }
 
 .btn-outline-light {
@@ -900,24 +914,53 @@ main {
    ========================================================================== */
 .custom-checkbox {
     display: inline-flex;
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--color-hs-kehl);
-    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 6px;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
     color: transparent;
-    transition: all var(--transition-speed);
+    background: #ffffff;
+    transition: all 0.2s ease;
     flex-shrink: 0;
-    margin-right: 8px;
+    margin-right: 10px;
 }
 
-/* Wenn Checkbox oder Radio gecheckt → Hintergrund + Häkchen/X sichtbar */
-.option-label input[type="checkbox"]:checked ~ .custom-checkbox,
-.option-label input[type="radio"]:checked ~ .custom-checkbox {
+.option-label input[type="checkbox"]:checked ~ .custom-checkbox {
+    border-color: var(--color-hs-kehl);
     background: var(--color-hs-kehl);
-    color: #fff;
+    color: #ffffff;
+}
+
+.custom-radio-circle {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-right: 10px;
+    position: relative;
+}
+
+.option-label input[type="radio"]:checked ~ .custom-radio-circle {
+    border-color: var(--color-hs-kehl);
+}
+
+.option-label input[type="radio"]:checked ~ .custom-radio-circle::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: var(--color-hs-kehl);
+    border-radius: 50%;
+    position: absolute;
 }
 
 .option-label input[type="checkbox"],
@@ -1068,4 +1111,53 @@ main {
         max-width: 112px;
         max-height: 52px;
     }
+}
+
+/* Button zum Hochscrollen */
+#btn-scroll-to-top {
+    display: none;
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    z-index: 99999;
+    border: none;
+    outline: none;
+    background-color: var(--color-hs-kehl);
+    color: white;
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: background-color var(--transition-speed), transform var(--transition-speed), opacity var(--transition-speed);
+}
+
+#btn-scroll-to-top:hover {
+    background-color: #2b70c4;
+    transform: scale(1.1);
+}
+
+/* Globaler Lade-Spinner */
+.loading-spinner-circle {
+    width: 54px;
+    height: 54px;
+    border: 5px solid #e9ecef;
+    border-top-color: var(--color-hs-kehl);
+    border-radius: 50%;
+    animation: spin-loading-indicator 0.85s linear infinite;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+@keyframes spin-loading-indicator {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Klickbare Teilnahme-Statistik-Karten */
+.stats-card-clickable:hover {
+    border-color: var(--color-hs-kehl) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(33, 96, 166, 0.15) !important;
 }

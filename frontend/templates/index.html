@@ -77,10 +77,81 @@
                     <input type="radio" name="answer" value="{{ opt.value }}"
                            {% if question.required %}required{% endif %}
                            {% if saved_answer == opt.value %}checked{% endif %}>
-                    <span class="custom-checkbox">X</span>
+                    <span class="custom-radio-circle"></span>
                     {{ opt.text }}
                 </label>
                 {% endfor %}
+            </div>
+
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- ============================================================
+             Fragetyp: JA/NEIN (yes_no) – Zwei Radio-Buttons
+             ============================================================ -->
+        {% elif question.type == 'yes_no' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+
+            <p class="question-label">{{ question.label }}</p>
+            <div class="options">
+                <label class="option-label {% if saved_answer == 'ja' %}option-selected{% endif %}">
+                    <input type="radio" name="answer" value="ja"
+                           {% if question.required %}required{% endif %}
+                           {% if saved_answer == 'ja' %}checked{% endif %}>
+                    <span class="custom-radio-circle"></span>
+                    Ja
+                </label>
+                <label class="option-label {% if saved_answer == 'nein' %}option-selected{% endif %}">
+                    <input type="radio" name="answer" value="nein"
+                           {% if question.required %}required{% endif %}
+                           {% if saved_answer == 'nein' %}checked{% endif %}>
+                    <span class="custom-radio-circle"></span>
+                    Nein
+                </label>
+            </div>
+
+            <div class="step-nav">
+                {% if step > 0 %}
+                <button type="submit" formaction="{{ url_for('survey_back') }}" class="btn-secondary">Zurück</button>
+                {% else %}
+                <span></span>
+                {% endif %}
+                {% if step < total - 1 %}
+                <button type="submit" class="btn-primary">Weiter</button>
+                {% else %}
+                <button type="submit" class="btn-primary btn-submit-final">Absenden</button>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- ============================================================
+             Fragetyp: DATUM (date) – HTML5 Date Input
+             ============================================================ -->
+        {% elif question.type == 'date' %}
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+            <input type="hidden" name="role" value="{{ role }}">
+            <input type="hidden" name="step" value="{{ step }}">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+
+            <label class="question-label" for="{{ question.id }}-input">{{ question.label }}</label>
+            <div class="date-input-container" style="margin-bottom: 24px;">
+                <input type="date" class="form-control date-picker" id="{{ question.id }}-input" name="answer"
+                       value="{{ saved_answer or '' }}" {% if question.required %}required{% endif %} 
+                       style="max-width:320px; font-size:1.1rem; padding: 10px 14px;">
             </div>
 
             <div class="step-nav">
