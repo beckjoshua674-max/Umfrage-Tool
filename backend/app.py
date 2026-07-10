@@ -1,33 +1,20 @@
-import base64
 import csv
 import datetime
-import hashlib
-import hmac
-import io
 import json
 import os
 import uuid
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import contextlib
+import time
+import io
+from functools import wraps
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
-
+import jwt
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-SURVEY_FILES = {
-    "student": DATA_DIR / "survey_student.json",
-    "professor": DATA_DIR / "survey_professor.json",
-}
-def lade_admin_zugangsdaten():
-    """Liest die Admin-Zugangsdaten aus der JSON-Datei ein."""
-    pfad = DATA_DIR / "admins.json"
-    if not pfad.exists():
-        return {}
-    try:
-        with pfad.open("r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+
 # Versuche .env-Datei einzulesen, falls vorhanden
 env_pfad = BASE_DIR / ".env"
 if env_pfad.exists():
@@ -41,91 +28,45 @@ if env_pfad.exists():
     except Exception as e:
         print(f"Fehler beim Laden der .env Datei: {e}")
 
-JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret").encode("utf-8")
+JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret")
 JWT_LIFETIME_SECONDS = 60 * 60 * 8
 
+app = Flask(__name__)
+CORS(app)  # Erlaubt CORS für die gesamte API
 
-def b64url_encode(data):
-    """Kodiert Bytes fuer JWT ohne Padding."""
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def b64url_decode(data):
-    """Dekodiert Base64Url-Daten mit ergaenztem Padding."""
-    padding = "=" * ((4 - len(data) % 4) % 4)
-    return base64.urlsafe_b64decode((data + padding).encode("ascii"))
-
-
-def erstelle_jwt(username, role):
-    """Erstellt ein einfaches HS256-JWT fuer den Admin-Login."""
-    now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-    header = {"alg": "HS256", "typ": "JWT"}
-    payload = {
-        "username": username,
-        "role": role,
-        "iat": now,
-        "exp": now + JWT_LIFETIME_SECONDS,
-    }
-    header_b64 = b64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
-    payload_b64 = b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    signatur_basis = f"{header_b64}.{payload_b64}".encode("ascii")
-    signatur = hmac.new(JWT_SECRET, signatur_basis, hashlib.sha256).digest()
-    return f"{header_b64}.{payload_b64}.{b64url_encode(signatur)}"
-
-
-def pruefe_jwt(token):
-    """Prueft Signatur, Ablaufzeit und Admin-Rolle eines JWT."""
-    teile = token.split(".")
-    if len(teile) != 3:
-        return None
-
-    signatur_basis = f"{teile[0]}.{teile[1]}".encode("ascii")
-    erwartete_signatur = hmac.new(JWT_SECRET, signatur_basis, hashlib.sha256).digest()
+def lade_admin_zugangsdaten():
+    pfad = DATA_DIR / "admins.json"
+    if not pfad.exists():
+        return {}
     try:
-        gegebene_signatur = b64url_decode(teile[2])
-        payload = json.loads(b64url_decode(teile[1]).decode("utf-8"))
-    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
-        return None
+        with pfad.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-    if not hmac.compare_digest(erwartete_signatur, gegebene_signatur):
-        return None
-
-    exp = payload.get("exp")
-    now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-    if isinstance(exp, int) and exp < now:
-        return None
-
-    return payload
-
-
-def normalisiere_rolle(rolle):
-    """Begrenzt Rollen auf die vorhandenen Umfragedateien."""
-    rolle = (rolle or "student").strip().lower()
-    if rolle not in SURVEY_FILES:
-        return "student"
-    return rolle
-
-
-def lade_erste_umfrage():
-    """Laedt die erste verfuegbare Umfragedefinition."""
-    # Erst standardmaessige survey_student.json oder survey_professor.json probieren
-    for name in ("survey_student.json", "survey_professor.json"):
-        pfad = DATA_DIR / name
-        if pfad.exists():
-            with pfad.open("r", encoding="utf-8") as file:
-                return json.load(file)
-    # Ansonsten alle survey_*.json scannen und die erste passende Rueckgeben
-    for pfad in DATA_DIR.glob("survey_*.json"):
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"status": "error", "message": "Nicht autorisiert."}), 401
+        
+        token = auth_header.removeprefix("Bearer ").strip()
         try:
-            with pfad.open("r", encoding="utf-8") as file:
-                return json.load(file)
-        except Exception:
-            continue
-    raise FileNotFoundError("Keine Umfrage gefunden.")
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            if payload.get("role") != "admin":
+                return jsonify({"status": "error", "message": "Nicht autorisiert."}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({"status": "error", "message": "Token abgelaufen."}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"status": "error", "message": "Ungültiges Token."}), 401
+        
+        return f(*args, **kwargs)
+    return decorated
 
+# --- Datei & Logik Funktionen ---
 
-def speichere_umfrage(rolle, daten):
-    """Speichert eine Umfragedefinition in einer Datei basierend auf ihrer survey_id."""
+def speichere_umfrage(daten):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     survey_id = daten.get("survey_id")
     sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
@@ -134,9 +75,7 @@ def speichere_umfrage(rolle, daten):
         json.dump(daten, file, ensure_ascii=False, indent=2)
         file.write("\n")
 
-
 def finde_umfrage_nach_id(survey_id):
-    """Sucht eine Umfragedefinition anhand ihrer survey_id."""
     for pfad in DATA_DIR.glob("survey_*.json"):
         try:
             with pfad.open("r", encoding="utf-8") as file:
@@ -147,9 +86,7 @@ def finde_umfrage_nach_id(survey_id):
             continue
     return None, None
 
-
 def finde_umfrage_pfad_nach_id(survey_id):
-    """Sucht den Dateipfad einer Umfrage anhand ihrer survey_id."""
     for pfad in DATA_DIR.glob("survey_*.json"):
         try:
             with pfad.open("r", encoding="utf-8") as file:
@@ -160,9 +97,17 @@ def finde_umfrage_pfad_nach_id(survey_id):
             continue
     return None, None
 
+def lade_alle_umfragen():
+    umfragen = []
+    for pfad in DATA_DIR.glob("survey_*.json"):
+        try:
+            with pfad.open("r", encoding="utf-8") as file:
+                umfragen.append(json.load(file))
+        except Exception:
+            continue
+    return umfragen
 
 def validiere_umfrage_definition(payload):
-    """Prueft eine vom Admin gespeicherte Umfragedefinition."""
     if not isinstance(payload, dict):
         return "Der Request-Body muss ein JSON-Objekt sein."
     for feld in ("survey_id", "title", "questions"):
@@ -185,51 +130,14 @@ def validiere_umfrage_definition(payload):
                 return f"Frage {index} benoetigt eine nicht-leere options-Liste."
     return None
 
-
 def antwort_ist_leer(antwort):
-    """Prueft leere Antworten typunabhaengig."""
     if antwort is None:
         return True
     if isinstance(antwort, list):
         return not any(str(wert).strip() for wert in antwort)
     return str(antwort).strip() == ""
 
-
-def normalisiere_multiple_choice_antwort(antwort, erlaubte_werte):
-    """Gibt Multiple-Choice-Antworten als Werteliste zurueck."""
-    if isinstance(antwort, list):
-        return [str(wert).strip() for wert in antwort if str(wert).strip()]
-    if isinstance(antwort, str):
-        text = antwort.strip()
-        # Bereinige etwaige Anfuehrungszeichen um die Liste (z.B. '["wert"]' oder "['wert']")
-        if (text.startswith("'") and text.endswith("'")) or (text.startswith('"') and text.endswith('"')):
-            text = text[1:-1].strip()
-        
-        # Falls es eine stringifizierte Liste ist (z.B. ["wert"] oder ['wert'])
-        if text.startswith("[") and text.endswith("]"):
-            try:
-                import json as json_mod
-                werte = json_mod.loads(text.replace("'", '"'))
-                if isinstance(werte, list):
-                    return [str(wert).strip() for wert in werte if str(wert).strip()]
-            except Exception:
-                # Manueller Fallback fuer nicht-JSON-konforme Listen (z.B. mit einfachen Anfuehrungszeichen)
-                innen = text[1:-1].strip()
-                if innen:
-                    teile = [t.strip().strip("'").strip('"') for t in innen.split(",")]
-                    return [t for t in teile if t]
-                return []
-
-        if not text:
-            return []
-        if text in erlaubte_werte:
-            return [text]
-        return zerlege_kommagetrennte_werte(text, erlaubte_werte)
-    return None
-
-
 def zerlege_kommagetrennte_werte(text, erlaubte_werte):
-    """Rekonstruiert alte kommagetrennte Antworten anhand erlaubter Werte."""
     teile = [teil.strip() for teil in text.split(",")]
     werte = []
     index = 0
@@ -248,20 +156,35 @@ def zerlege_kommagetrennte_werte(text, erlaubte_werte):
         index = treffer_ende
     return werte
 
-
-def formatiere_antwort_fuer_csv(antwort):
-    """Serialisiert Listenantworten eindeutig fuer die CSV-Ablage und bereinigt Trennzeichen."""
+def normalisiere_multiple_choice_antwort(antwort, erlaubte_werte):
     if isinstance(antwort, list):
-        werte = [str(wert).strip() for wert in antwort if str(wert).strip()]
-        werte_clean = [w.replace(';', ',').replace('\n', ' ').replace('\r', ' ') for w in werte]
-        return json.dumps(werte_clean, ensure_ascii=False, separators=(",", ":"))
+        return [str(wert).strip() for wert in antwort if str(wert).strip()]
     if isinstance(antwort, str):
-        return antwort.replace(';', ',').replace('\n', ' ').replace('\r', ' ')
-    return antwort
+        text = antwort.strip()
+        if (text.startswith("'") and text.endswith("'")) or (text.startswith('"') and text.endswith('"')):
+            text = text[1:-1].strip()
+        
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                import json as json_mod
+                werte = json_mod.loads(text.replace("'", '"'))
+                if isinstance(werte, list):
+                    return [str(wert).strip() for wert in werte if str(wert).strip()]
+            except Exception:
+                innen = text[1:-1].strip()
+                if innen:
+                    teile = [t.strip().strip("'").strip('"') for t in innen.split(",")]
+                    return [t for t in teile if t]
+                return []
 
+        if not text:
+            return []
+        if text in erlaubte_werte:
+            return [text]
+        return zerlege_kommagetrennte_werte(text, erlaubte_werte)
+    return None
 
 def validiere_ergebnis_payload(payload):
-    """Validiert Antworten gegen die gespeicherte Umfragedefinition."""
     if not isinstance(payload, dict):
         return "Der Payload muss ein valides JSON-Objekt sein."
 
@@ -317,16 +240,19 @@ def validiere_ergebnis_payload(payload):
             return f"Wert fuer Ja/Nein-Frage '{frage_id}' muss 'ja' oder 'nein' sein."
         elif typ == "date" and (not isinstance(antwort, str) or not antwort.strip()):
             return f"Antwort fuer Datum-Frage '{frage_id}' muss ein gueltiges Datum sein."
-
     return None
 
-
-import contextlib
-import time
+def formatiere_antwort_fuer_csv(antwort):
+    if isinstance(antwort, list):
+        werte = [str(wert).strip() for wert in antwort if str(wert).strip()]
+        werte_clean = [w.replace(';', ',').replace('\n', ' ').replace('\r', ' ') for w in werte]
+        return json.dumps(werte_clean, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(antwort, str):
+        return antwort.replace(';', ',').replace('\n', ' ').replace('\r', ' ')
+    return antwort
 
 @contextlib.contextmanager
 def datei_sperre_einfach(lock_pfad):
-    """Einfache plattformübergreifende Dateisperre via Lock-Datei."""
     start_time = time.time()
     while True:
         try:
@@ -346,7 +272,6 @@ def datei_sperre_einfach(lock_pfad):
             pass
 
 def schreibe_ergebnis_csv(payload):
-    """Speichert Antworten append-only in results_<survey_id>.csv mit Dateisperre."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     result_id = str(uuid.uuid4())
     timestamp = payload.get("timestamp") or datetime.datetime.utcnow().isoformat() + "Z"
@@ -364,9 +289,7 @@ def schreibe_ergebnis_csv(payload):
 
     return result_id
 
-
 def lade_ergebnisse_csv():
-    """Liest alle Ergebnis-CSV-Dateien zusammen und gibt CSV-Text zurueck."""
     ausgabe = io.StringIO()
     writer = csv.writer(ausgabe, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL)
     writer.writerow(["result_id", "timestamp", "survey_id", "question_id", "answer"])
@@ -381,166 +304,108 @@ def lade_ergebnisse_csv():
 
     return ausgabe.getvalue()
 
+# --- API Endpunkte ---
 
-class ApiHandler(BaseHTTPRequestHandler):
-    """HTTP-Handler fuer die Backend-API."""
+@app.route("/api/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "service": "ask-alma-backend"})
 
-    def _sende_json(self, status_code, payload):
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status_code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self._sende_cors_header()
-        self.end_headers()
-        self.wfile.write(body)
+@app.route("/api/login", methods=["POST"])
+def login():
+    payload = request.json or {}
+    username = payload.get("username")
+    password = payload.get("password")
+    admins = lade_admin_zugangsdaten()
+    if username in admins and admins[username] == password:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        token = jwt.encode({
+            "username": username,
+            "role": "admin",
+            "iat": now,
+            "exp": now + datetime.timedelta(seconds=JWT_LIFETIME_SECONDS)
+        }, JWT_SECRET, algorithm="HS256")
+        return jsonify({"token": token, "role": "admin"}), 200
+    return jsonify({"status": "error", "message": "Login fehlgeschlagen."}), 401
 
-    def _sende_cors_header(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+@app.route("/api/surveys", methods=["GET"])
+def get_surveys():
+    """Gibt eine Liste aller Umfragen zurück (REST Standard)."""
+    return jsonify(lade_alle_umfragen()), 200
 
-    def _lese_json_body(self):
-        content_length = int(self.headers.get("Content-Length", "0"))
-        if content_length == 0:
-            return None
-        raw_body = self.rfile.read(content_length)
-        try:
-            return json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError:
-            return None
+@app.route("/api/surveys/<survey_id>", methods=["GET"])
+def get_survey(survey_id):
+    """Gibt eine spezifische Umfrage zurück."""
+    _, umfrage = finde_umfrage_nach_id(survey_id)
+    if not umfrage:
+        return jsonify({"status": "error", "message": "Umfrage nicht gefunden."}), 404
+    return jsonify(umfrage), 200
 
-    def _admin_payload(self):
-        auth_header = self.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return None
-        payload = pruefe_jwt(auth_header.removeprefix("Bearer ").strip())
-        if payload and payload.get("role") == "admin":
-            return payload
-        return None
+@app.route("/api/surveys", methods=["POST"])
+@token_required
+def create_survey():
+    """Erstellt eine neue Umfrage."""
+    payload = request.json or {}
+    if not payload.get("survey_id"):
+        payload["survey_id"] = str(uuid.uuid4())
+    
+    fehler = validiere_umfrage_definition(payload)
+    if fehler:
+        return jsonify({"status": "error", "message": fehler}), 400
+    
+    _, exists = finde_umfrage_nach_id(payload["survey_id"])
+    if exists:
+        return jsonify({"status": "error", "message": "Umfrage mit dieser ID existiert bereits. Nutze PUT zum Aktualisieren."}), 409
+    
+    speichere_umfrage(payload)
+    resp = jsonify({"status": "created", "survey_id": payload["survey_id"]})
+    resp.headers["Location"] = f"/api/surveys/{payload['survey_id']}"
+    return resp, 201
 
-    def _fordere_admin(self):
-        if self._admin_payload() is None:
-            self._sende_json(401, {"status": "error", "message": "Nicht autorisiert."})
-            return False
-        return True
+@app.route("/api/surveys/<survey_id>", methods=["PUT"])
+@token_required
+def update_survey(survey_id):
+    """Aktualisiert eine bestehende Umfrage (oder erstellt sie, falls Idempotenz gewünscht ist)."""
+    payload = request.json or {}
+    payload["survey_id"] = survey_id
+    fehler = validiere_umfrage_definition(payload)
+    if fehler:
+        return jsonify({"status": "error", "message": fehler}), 400
+    
+    speichere_umfrage(payload)
+    return jsonify({"status": "updated", "survey_id": survey_id}), 200
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self._sende_cors_header()
-        self.end_headers()
+@app.route("/api/surveys/<survey_id>", methods=["DELETE"])
+@token_required
+def delete_survey(survey_id):
+    """Löscht eine spezifische Umfrage."""
+    _, umfrage_pfad = finde_umfrage_pfad_nach_id(survey_id)
+    if not umfrage_pfad:
+        return jsonify({"status": "error", "message": "Umfrage nicht gefunden."}), 404
+    umfrage_pfad.unlink()
+    return "", 204
 
-    def do_GET(self):
-        parsed_url = urlparse(self.path)
-        pfad = parsed_url.path
-        query = parse_qs(parsed_url.query)
+@app.route("/api/results", methods=["POST"])
+def submit_results():
+    """Speichert Ergebnisse als CSV."""
+    payload = request.json or {}
+    fehler = validiere_ergebnis_payload(payload)
+    if fehler:
+        return jsonify({"status": "error", "message": fehler}), 400
+    result_id = schreibe_ergebnis_csv(payload)
+    return jsonify({"status": "created", "result_id": result_id}), 201
 
-        if pfad == "/api/health":
-            self._sende_json(200, {"status": "ok", "service": "ask-alma-backend"})
-            return
-
-        if pfad == "/api/surveys":
-            survey_id = query.get("survey_id", [""])[0]
-            if survey_id:
-                _, umfrage = finde_umfrage_nach_id(survey_id)
-                if umfrage is None:
-                    self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
-                    return
-                self._sende_json(200, umfrage)
-                return
-
-            try:
-                self._sende_json(200, lade_erste_umfrage())
-            except FileNotFoundError:
-                self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
-            return
-
-        if pfad == "/api/results":
-            if not self._fordere_admin():
-                return
-            csv_text = lade_ergebnisse_csv()
-            body = csv_text.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/csv; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-            self._sende_cors_header()
-            self.end_headers()
-            self.wfile.write(body)
-            return
-
-        self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
-
-    def do_POST(self):
-        parsed_url = urlparse(self.path)
-        pfad = parsed_url.path
-
-        if pfad == "/api/login":
-            payload = self._lese_json_body()
-            username = payload.get("username") if isinstance(payload, dict) else None
-            password = payload.get("password") if isinstance(payload, dict) else None
-            admins = lade_admin_zugangsdaten()
-            if username in admins and admins[username] == password:
-                token = erstelle_jwt(username, "admin")
-                self._sende_json(200, {"token": token, "role": "admin"})
-                return
-            self._sende_json(401, {"status": "error", "message": "Login fehlgeschlagen."})
-            return
-
-        if pfad == "/api/results":
-            payload = self._lese_json_body()
-            fehler = validiere_ergebnis_payload(payload)
-            if fehler:
-                self._sende_json(400, {"status": "error", "message": fehler})
-                return
-            result_id = schreibe_ergebnis_csv(payload)
-            self._sende_json(201, {"status": "created", "result_id": result_id})
-            return
-
-        if pfad == "/api/surveys":
-            if not self._fordere_admin():
-                return
-            payload = self._lese_json_body()
-            fehler = validiere_umfrage_definition(payload)
-            if fehler:
-                self._sende_json(400, {"status": "error", "message": fehler})
-                return
-            speichere_umfrage(None, payload)
-            self._sende_json(201, {"status": "created", "survey_id": payload["survey_id"]})
-            return
-
-        self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
-
-    def do_DELETE(self):
-        pfad = urlparse(self.path).path
-        prefix = "/api/surveys/"
-
-        if not pfad.startswith(prefix):
-            self._sende_json(404, {"status": "error", "message": "Route nicht gefunden."})
-            return
-        if not self._fordere_admin():
-            return
-
-        survey_id = unquote(pfad[len(prefix):]).strip()
-        _, umfrage_pfad = finde_umfrage_pfad_nach_id(survey_id)
-        if umfrage_pfad is None:
-            self._sende_json(404, {"status": "error", "message": "Umfrage nicht gefunden."})
-            return
-
-        umfrage_pfad.unlink()
-        self.send_response(204)
-        self._sende_cors_header()
-        self.end_headers()
-
-    def log_message(self, format, *args):
-        print(f"{self.address_string()} - {format % args}")
-
-
-def starte_server(host="0.0.0.0", port=8000):
-    """Startet den HTTP-Server fuer die Backend-API."""
-    server = ThreadingHTTPServer((host, port), ApiHandler)
-    print(f"Ask-Alma-Backend laeuft auf http://{host}:{port}")
-    server.serve_forever()
-
+@app.route("/api/results", methods=["GET"])
+@token_required
+def get_results():
+    """Gibt alle Ergebnisse als CSV zurück."""
+    csv_text = lade_ergebnisse_csv()
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+        }
+    )
 
 if __name__ == "__main__":
-    starte_server()
+    app.run(host="0.0.0.0", port=8000)

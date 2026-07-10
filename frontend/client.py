@@ -9,7 +9,6 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, make_response
 import pathlib
 
-BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
 
 # Versuche .env-Datei einzulesen, falls vorhanden
 env_pfad = pathlib.Path(__file__).resolve().parent / ".env"
@@ -67,18 +66,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def lade_admin_zugangsdaten_lokal():
-    """Liest die Admin-Zugangsdaten aus der JSON-Datei im Backend-Verzeichnis."""
-    pfad = BACKEND_DATEN_PFAD / "admins.json"
-    if not pfad.exists():
-        return {}
-    try:
-        with open(pfad, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
 
-DEV_TEST_USERS = {}
 
 # ==============================================================
 # Routen: Login & Session
@@ -101,8 +89,6 @@ def login():
     password     = request.form.get('password')
     desired_role = request.form.get('role', 'student')
 
-    # Versuch 1: Login über das Backend (Produktivmodus)
-    backend_hat_explizit_abgelehnt = False
     try:
         response = requests.post(f"{BACKEND_API_URL}/login", json={
             "username": username,
@@ -110,7 +96,6 @@ def login():
         }, timeout=3)
 
         if response.ok:
-            # Backend hat erfolgreich eingeloggt â†’ Token speichern
             data = response.json()
             session['token']    = data.get('token')
             session['role']     = data.get('role', desired_role)
@@ -119,26 +104,8 @@ def login():
             if session['role'] == 'admin':
                 return redirect(url_for('admin'))
             return redirect(url_for('survey', role=session['role']))
-
-        if response.status_code == 401:
-            # Backend kennt den Benutzer und lehnt ihn explizit ab â†’ kein Fallback
-            backend_hat_explizit_abgelehnt = True
-
-        # Alle anderen Codes (404, 405, 500 etc.) â†’ Fallback auf DEV_TEST_USERS
-
     except Exception:
-        # Backend nicht erreichbar â†’ Fallback
         pass
-
-    # Versuch 2: Lokale Test-Zugangsdaten (Entwicklungsmodus)
-    if not backend_hat_explizit_abgelehnt:
-        admins_lokal = lade_admin_zugangsdaten_lokal()
-        if username in admins_lokal and admins_lokal[username] == password:
-            session['token']    = f"dev-token-{username}"
-            session['role']     = "admin"
-            session['username'] = username
-            flash(f"Eingeloggt als {username} (Entwicklungsmodus).")
-            return redirect(url_for('admin'))
 
     flash("Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.", "error")
     return redirect(url_for('login_page', role=desired_role))
@@ -427,7 +394,7 @@ def berechne_statistiken(umfragen, ergebnisse):
 @app.route('/', methods=['GET'])
 def index():
     """Startseite: Rollenauswahl und Liste der verfügbaren Umfragen."""
-    umfragen = lade_alle_umfragen_lokal()
+    umfragen = lade_alle_umfragen()
     return render_template('role_select.html', umfragen=umfragen)
 
 @app.route('/survey', methods=['GET'])
@@ -461,9 +428,11 @@ def survey():
     # -------------------------------------------------------
     if 'survey_data' not in session or (survey_id and session.get('survey_version_id') != survey_id):
         try:
-            url = f"{BACKEND_API_URL}/surveys"
             if survey_id:
-                url += f"?survey_id={survey_id}"
+                url = f"{BACKEND_API_URL}/surveys/{survey_id}"
+            else:
+                # Get the first survey from the list if no id is provided
+                url = f"{BACKEND_API_URL}/surveys"
             response = requests.get(
                 url,
                 headers=get_auth_headers()
@@ -474,6 +443,11 @@ def survey():
                 return redirect(url_for('login_page', role='admin'))
             response.raise_for_status()
             survey_data = response.json()
+            if isinstance(survey_data, list):
+                if survey_data:
+                    survey_data = survey_data[0]
+                else:
+                    survey_data = None
 
             # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
             session['survey_data']       = survey_data
@@ -757,47 +731,36 @@ def survey_submit():
 import pathlib
 BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
 
-def lade_alle_umfragen_lokal():
-    """Lädt alle bekannten Umfrage-Dateien direkt aus dem Backend-Datenverzeichnis.
-    Dient als zuverlässiger Fallback, wenn der Backend-API-Endpunkt noch nicht implementiert ist."""
-    import json as json_mod
-    umfragen = []
-    if BACKEND_DATEN_PFAD.exists():
-        for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
-            try:
-                with open(pfad, "r", encoding="utf-8") as f:
-                    daten = json_mod.load(f)
-                    daten["_datei"] = pfad.name
-                    umfragen.append(daten)
-            except Exception as e:
-                print(f"Warnung: Konnte {pfad.name} nicht laden: {e}")
-    return umfragen
+def lade_alle_umfragen():
+    import requests
+    try:
+        res = requests.get(f"{BACKEND_API_URL}/surveys", headers=get_auth_headers(), timeout=2)
+        if res.ok:
+            return res.json()
+    except Exception as e:
+        print(f"Fehler beim Laden aller Umfragen: {e}")
+    return []
 
 def lade_ergebnisse():
-    """Versucht Ergebnisse vom Backend (im CSV-Format) zu laden und zu parsen.
-    Fällt bei Fehlern auf direktes Lesen der lokalen CSV-Dateien aus backend/data/ zurück."""
-    import csv
-    import io
-    # Versuch 1: Backend-API GET /api/results
+    import csv, io, requests, time
+    ergebnisse_dict = {}
     try:
-        import time
         t = int(time.time())
         res = requests.get(f"{BACKEND_API_URL}/results?t={t}", headers=get_auth_headers(), timeout=2)
         if res.status_code == 401:
             raise PermissionError("Sitzung abgelaufen")
         if res.ok:
             csv_data = res.text
-            if csv_data.startswith('\ufeff'):
+            if csv_data.startswith('﻿'):
                 csv_data = csv_data[1:]
 
             f = io.StringIO(csv_data)
             reader = csv.reader(f, delimiter=';')
             try:
-                next(reader)  # Header überspringen
+                next(reader)  # Header
             except StopIteration:
                 return []
 
-            ergebnisse_dict = {}
             for row in reader:
                 if len(row) < 5:
                     continue
@@ -810,44 +773,12 @@ def lade_ergebnisse():
                         "answers": {}
                     }
                 ergebnisse_dict[result_id]["answers"][question_id] = parse_csv_antwort(answer)
-            return list(ergebnisse_dict.values())
     except PermissionError:
         raise
     except Exception as e:
         print(f"Fehler beim Laden/Parsen der API-Ergebnisse: {e}")
         if not DEV_MODE:
             raise e
-
-    # Versuch 2: Direkt aus dem Ergebnis-Verzeichnis / CSV-Dateien lesen (nur im Entwicklungsmodus)
-    import glob
-    ergebnisse_dict = {}
-    try:
-        csv_dateien = glob.glob(str(BACKEND_DATEN_PFAD / "results_*.csv"))
-        for datei_pfad in csv_dateien:
-            with open(datei_pfad, "r", encoding="utf-8") as f:
-                csv_data = f.read()
-                if csv_data.startswith('\ufeff'):
-                    csv_data = csv_data[1:]
-                reader = csv.reader(io.StringIO(csv_data), delimiter=';')
-                try:
-                    next(reader)  # Header überspringen
-                except StopIteration:
-                    continue
-                for row in reader:
-                    if len(row) < 5:
-                        continue
-                    result_id, timestamp, survey_id, question_id, answer = row
-                    if result_id not in ergebnisse_dict:
-                        ergebnisse_dict[result_id] = {
-                            "result_id": result_id,
-                            "received_at": timestamp,
-                            "survey_id": survey_id,
-                            "answers": {}
-                        }
-                    ergebnisse_dict[result_id]["answers"][question_id] = parse_csv_antwort(answer)
-    except Exception as e:
-        print(f"Fallback-Fehler beim Lesen der CSVs: {e}")
-
     return list(ergebnisse_dict.values())
 
 @app.route('/admin', methods=['GET'])
@@ -862,7 +793,7 @@ def admin():
         flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
         return redirect(url_for('login_page'))
 
-    alle_umfragen = lade_alle_umfragen_lokal()
+    alle_umfragen = lade_alle_umfragen()
     aktive_ids = {u.get('survey_id') for u in alle_umfragen if u.get('survey_id')}
     alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids]
     
@@ -920,7 +851,7 @@ def admin_results_export():
     from flask import Response
 
     alle_ergebnisse = lade_ergebnisse()
-    alle_umfragen = lade_alle_umfragen_lokal()
+    alle_umfragen = lade_alle_umfragen()
     aktive_ids = {u.get('survey_id') for u in alle_umfragen if u.get('survey_id')}
     alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids]
 
@@ -955,15 +886,10 @@ def admin_results_export():
 @app.route('/api/surveys', methods=['GET'])
 @login_required
 def api_get_survey():
-    """Proxy-Route zum Laden der JSON-Struktur einer Umfrage."""
     import json as json_mod
     survey_id = request.args.get('survey_id', '')
-
-    # Vom Backend abrufen
     try:
-        url = f"{BACKEND_API_URL}/surveys"
-        if survey_id:
-            url += f"?survey_id={survey_id}"
+        url = f"{BACKEND_API_URL}/surveys/{survey_id}" if survey_id else f"{BACKEND_API_URL}/surveys"
         response = requests.get(
             url,
             headers=get_auth_headers(),
@@ -972,92 +898,47 @@ def api_get_survey():
         if response.status_code == 401:
             session.clear()
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen."}), 401, {"Content-Type": "application/json; charset=utf-8"}
-        if response.ok:
-            return response.text, 200, {"Content-Type": "application/json; charset=utf-8"}
+        return response.text, response.status_code, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
-        if not DEV_MODE:
-            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
-
-    # Lokaler Fallback (nur im Entwicklungsmodus)
-    try:
-        if survey_id:
-            for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
-                try:
-                    with open(pfad, "r", encoding="utf-8") as f:
-                        daten = json_mod.load(f)
-                        if daten.get("survey_id") == survey_id:
-                            return json_mod.dumps(daten), 200, {"Content-Type": "application/json; charset=utf-8"}
-                except Exception:
-                    continue
-        for name in ("survey_student.json", "survey_professor.json"):
-            pfad = BACKEND_DATEN_PFAD / name
-            if pfad.exists():
-                with open(pfad, "r", encoding="utf-8") as f:
-                    return f.read(), 200, {"Content-Type": "application/json; charset=utf-8"}
-        for pfad in BACKEND_DATEN_PFAD.glob("survey_*.json"):
-            try:
-                with open(pfad, "r", encoding="utf-8") as f:
-                    return f.read(), 200, {"Content-Type": "application/json; charset=utf-8"}
-            except Exception:
-                continue
-        return json_mod.dumps({"status": "error", "message": "Keine Umfragen gefunden"}), 404, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception as e:
-        return json_mod.dumps({"status": "error", "message": str(e)}), 500, {"Content-Type": "application/json; charset=utf-8"}
+        return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
 @app.route('/admin/surveys/save', methods=['POST'])
 @login_required
 def survey_save_local():
-    """Speichert eine Umfrage. Ruft den API-Endpunkt POST /api/surveys auf.
-    Fällt bei Verbindungsfehlern auf lokales Speichern zurück (Entwicklungsmodus)."""
     import json as json_mod
-
     nutzlast = request.get_json(silent=True)
     if not nutzlast:
         return json_mod.dumps({"status": "error", "message": "Kein gültiger JSON-Body empfangen."}), 400, {"Content-Type": "application/json; charset=utf-8"}
 
     survey_id = nutzlast.get("survey_id", "")
-    if not survey_id:
-        return json_mod.dumps({"status": "error", "message": "Feld 'survey_id' fehlt."}), 400, {"Content-Type": "application/json; charset=utf-8"}
-    sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
-    dateiname = f"survey_{sichere_id}.json"
-    ziel_pfad = BACKEND_DATEN_PFAD / dateiname
-
-    # Versuch 1: Echten Backend-Endpunkt POST /api/surveys nutzen
     try:
-        antwort = requests.post(
-            f"{BACKEND_API_URL}/surveys",
-            json=nutzlast,
-            headers={**get_auth_headers(), "Content-Type": "application/json"},
-            timeout=2
-        )
+        if survey_id:
+            # Update existing -> PUT
+            antwort = requests.put(
+                f"{BACKEND_API_URL}/surveys/{survey_id}",
+                json=nutzlast,
+                headers={**get_auth_headers(), "Content-Type": "application/json"},
+                timeout=2
+            )
+        else:
+            # Create new -> POST
+            antwort = requests.post(
+                f"{BACKEND_API_URL}/surveys",
+                json=nutzlast,
+                headers={**get_auth_headers(), "Content-Type": "application/json"},
+                timeout=2
+            )
         if antwort.status_code == 401:
             session.clear()
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte neu anmelden."}), 401, {"Content-Type": "application/json; charset=utf-8"}
-        # Wenn der Server antwortet (egal ob Erfolg oder Fehler), geben wir die Antwort zurück
         return antwort.text, antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
-        if not DEV_MODE:
-            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
-
-    # Versuch 2: Direkt ins Dateisystem schreiben (nur im Entwicklungsmodus)
-    try:
-        with open(ziel_pfad, "w", encoding="utf-8") as f:
-            json_mod.dump(nutzlast, f, ensure_ascii=False, indent=2)
-        return json_mod.dumps({
-            "status": "created",
-            "survey_id": nutzlast.get("survey_id", ""),
-            "saved_as": dateiname
-        }), 201, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception as e:
-        return json_mod.dumps({"status": "error", "message": f"Speichern fehlgeschlagen: {e}"}), 500, {"Content-Type": "application/json; charset=utf-8"}
+        return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
 @app.route('/admin/surveys/delete/<survey_id>', methods=['POST'])
 @login_required
 def survey_delete(survey_id):
-    """Proxy-Route zum Löschen einer Umfrage via Backend-API DELETE /api/surveys/{survey_id}."""
     import json as json_mod
-
-    # Versuch 1: Echten Backend-Endpunkt nutzen
     try:
         antwort = requests.delete(
             f"{BACKEND_API_URL}/surveys/{survey_id}",
@@ -1069,21 +950,9 @@ def survey_delete(survey_id):
             return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte neu anmelden."}), 401, {"Content-Type": "application/json; charset=utf-8"}
         if antwort.status_code == 204:
             return json_mod.dumps({"status": "deleted"}), 200, {"Content-Type": "application/json; charset=utf-8"}
+        return json_mod.dumps({"status": "error", "message": "Fehler beim Löschen"}), antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
-        if not DEV_MODE:
-            return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
-
-    # Versuch 2: Direkt aus dem Dateisystem löschen (nur im Entwicklungsmodus)
-    sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
-    dateiname = f"survey_{sichere_id}.json"
-    ziel_pfad = BACKEND_DATEN_PFAD / dateiname
-    try:
-        if ziel_pfad.exists():
-            ziel_pfad.unlink()
-            return json_mod.dumps({"status": "deleted", "message": f"Datei {dateiname} gelöscht"}), 200, {"Content-Type": "application/json; charset=utf-8"}
-        return json_mod.dumps({"status": "error", "message": "Umfrage-Datei existiert nicht."}), 404, {"Content-Type": "application/json; charset=utf-8"}
-    except Exception as e:
-        return json_mod.dumps({"status": "error", "message": f"Fehler beim Löschen: {e}"}), 500, {"Content-Type": "application/json; charset=utf-8"}
+        return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

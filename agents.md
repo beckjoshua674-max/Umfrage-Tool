@@ -16,6 +16,7 @@ Dieses Projekt dient dem Universitätsmodul "Verteilte Systeme". Es handelt sich
 * Automatische Synchronisation der requirements.md: Änderungen an der Architektur, Endpunkten, Berechtigungen, Datendateien oder Sicherheitsregeln sind unverzüglich in der requirements.md zu dokumentieren (vor oder zeitgleich mit der Implementierung).
 * Deutsche Kommentare: Alle Kommentare, Erklärungen und Dokumentationen im Quellcode sind in deutscher Sprache zu verfassen.
 * Zustandsdokumentation vor der Implementierung: Vor jeder Änderung sind die betroffenen Zustände (Session-Variablen, Cookies, Backend-Daten, flüchtige UI-Zustände, Fehlerzustände) in der requirements.md zu definieren.
+* Abhängigkeitsverwaltung: Python-Abhängigkeiten werden standardisiert in der `requirements.txt` gepflegt und über das Paketverwaltungstool `pip` installiert (`pip install -r requirements.txt`). Diese Datei ist essenziell für die saubere Umgebungskonfiguration.
 
 4. Git- und Commit-Standards
 Commit-Nachrichten sind gemäß dem "Conventional Commits"-Format in deutscher oder englischer Sprache zu formulieren (z. B. feat(frontend): python rendering logik hinzugefügt, fix(design): primärfarbe auf #334aff aktualisiert, refactor(backend): python routen umstrukturiert).

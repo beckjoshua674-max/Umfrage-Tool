@@ -242,4 +242,3 @@ Am oberen Rand des Auswertungs-Tabs (Tab 4) wird ein übersichtliches Panel mit 
 Zur Steigerung der visuellen Klarheit wird eine strikte Trennung vorgenommen:
 * **Mehrfachauswahl (multiple_choice)** verwendet ein eckiges Kontrollkästchen (abgerundetes Quadrat), das bei Auswahl mit der Primärfarbe gefüllt wird und ein weißes Kreuzzeichen "X" zeigt.
 * **Einzelauswahl (single_choice, yes_no)** verwendet einen runden Auswahlknopf (Radio-Circle), der bei Auswahl einen farbigen Punkt in der Mitte anzeigt.
-
