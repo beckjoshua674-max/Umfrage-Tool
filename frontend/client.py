@@ -391,10 +391,30 @@ def berechne_statistiken(umfragen, ergebnisse):
 # Routen: Umfrage (mit Route Guarding & Serverseitiger Validierung)
 # ==============================================================
 
+@app.route('/link/<link_id>', methods=['GET'])
+def use_link(link_id):
+    """Speichert das Token in der Session und leitet zur Startseite weiter."""
+    session['link_id'] = link_id
+    return redirect(url_for('index'))
+
 @app.route('/', methods=['GET'])
 def index():
     """Startseite: Rollenauswahl und Liste der verfügbaren Umfragen."""
     umfragen = lade_alle_umfragen()
+    link_id = session.get('link_id')
+    
+    if link_id:
+        try:
+            import requests
+            res = requests.get(f"{BACKEND_API_URL}/links", timeout=2)
+            if res.ok:
+                links = res.json()
+                erlaubte_surveys = links.get(link_id)
+                if erlaubte_surveys is not None:
+                    umfragen = [u for u in umfragen if u.get('survey_id') in erlaubte_surveys]
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Links: {e}")
+            
     return render_template('role_select.html', umfragen=umfragen)
 
 @app.route('/survey', methods=['GET'])
@@ -825,13 +845,24 @@ def admin():
                 alt_id = 'q' + q['id'][1:]
                 fragen_map[sid][alt_id] = q.get('label', q['id'])
 
+    # Links für Linkerstellung laden
+    links = {}
+    try:
+        import requests
+        res = requests.get(f"{BACKEND_API_URL}/links", headers=get_auth_headers(), timeout=2)
+        if res.ok:
+            links = res.json()
+    except Exception as e:
+        print(f"Fehler beim Laden der Links: {e}")
+
     resp = make_response(render_template('admin.html',
                                          umfragen=alle_umfragen,
                                          ergebnisse=alle_ergebnisse,
                                          statistiken=alle_statistiken,
                                          teilnahme_gesamt=teilnahme_gesamt,
                                          teilnahme_nach_umfrage=teilnahme_nach_umfrage,
-                                         fragen_map=fragen_map))
+                                         fragen_map=fragen_map,
+                                         links=links))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return resp
 
@@ -953,6 +984,41 @@ def survey_delete(survey_id):
         return json_mod.dumps({"status": "error", "message": "Fehler beim Löschen"}), antwort.status_code, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
         return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
+
+@app.route('/admin/links', methods=['GET', 'POST'])
+@login_required
+def manage_links():
+    import requests, json as json_mod
+    if request.method == 'POST':
+        nutzlast = request.get_json(silent=True)
+        try:
+            res = requests.post(
+                f"{BACKEND_API_URL}/links",
+                json=nutzlast,
+                headers={**get_auth_headers(), "Content-Type": "application/json"},
+                timeout=2
+            )
+            return res.text, res.status_code, {"Content-Type": "application/json; charset=utf-8"}
+        except Exception as e:
+            return json_mod.dumps({"status": "error", "message": str(e)}), 503, {"Content-Type": "application/json; charset=utf-8"}
+    else:
+        try:
+            res = requests.get(f"{BACKEND_API_URL}/links", headers=get_auth_headers(), timeout=2)
+            return res.text, res.status_code, {"Content-Type": "application/json; charset=utf-8"}
+        except Exception as e:
+            return json_mod.dumps({"status": "error", "message": str(e)}), 503, {"Content-Type": "application/json; charset=utf-8"}
+
+@app.route('/admin/links/<link_id>', methods=['DELETE'])
+@login_required
+def remove_link(link_id):
+    import requests, json as json_mod
+    try:
+        res = requests.delete(f"{BACKEND_API_URL}/links/{link_id}", headers=get_auth_headers(), timeout=2)
+        if res.status_code == 204:
+            return json_mod.dumps({"status": "deleted"}), 200, {"Content-Type": "application/json; charset=utf-8"}
+        return res.text, res.status_code, {"Content-Type": "application/json; charset=utf-8"}
+    except Exception as e:
+        return json_mod.dumps({"status": "error", "message": str(e)}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

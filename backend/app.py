@@ -44,6 +44,22 @@ def lade_admin_zugangsdaten():
     except Exception:
         return {}
 
+def lade_links():
+    pfad = DATA_DIR / "links.json"
+    if not pfad.exists():
+        return {}
+    try:
+        with pfad.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def speichere_links(links):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    pfad = DATA_DIR / "links.json"
+    with pfad.open("w", encoding="utf-8") as f:
+        json.dump(links, f, ensure_ascii=False, indent=2)
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -406,6 +422,37 @@ def get_results():
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
         }
     )
+
+@app.route("/api/links", methods=["GET"])
+def get_links():
+    """Gibt alle Links zurück."""
+    return jsonify(lade_links()), 200
+
+@app.route("/api/links", methods=["POST"])
+@token_required
+def create_link():
+    """Erstellt einen neuen Link für bestimmte Umfragen."""
+    payload = request.json or {}
+    surveys = payload.get("surveys", [])
+    if not isinstance(surveys, list):
+        return jsonify({"status": "error", "message": "surveys muss eine Liste sein."}), 400
+    
+    links = lade_links()
+    token = uuid.uuid4().hex[:8]  # Kurzer 8-stelliger Token
+    links[token] = surveys
+    speichere_links(links)
+    return jsonify({"status": "created", "link_id": token}), 201
+
+@app.route("/api/links/<link_id>", methods=["DELETE"])
+@token_required
+def delete_link(link_id):
+    """Löscht einen Link."""
+    links = lade_links()
+    if link_id in links:
+        del links[link_id]
+        speichere_links(links)
+        return "", 204
+    return jsonify({"status": "error", "message": "Link nicht gefunden."}), 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
