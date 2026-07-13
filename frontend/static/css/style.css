@@ -46,24 +46,17 @@ body {
 }
 
 .header-content {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
-    text-align: center;
+    gap: 20px;
     min-height: 86px;
-    padding-left: 150px;
-    padding-right: 190px;
-    box-sizing: border-box;
+    width: 100%;
 }
 
 .header-logo-link {
-    position: absolute;
-    top: 0;
-    right: var(--spacing-md);
-    display: inline-flex;
-    align-items: center;
+    display: flex;
+    justify-content: flex-start;
     text-decoration: none;
 }
 
@@ -76,7 +69,6 @@ body {
     background: var(--color-white);
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    box-sizing: border-box;
     transition: transform var(--transition-speed), box-shadow var(--transition-speed);
 }
 
@@ -85,10 +77,8 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
 }
 
-.header-session-actions {
-    position: absolute;
-    right: var(--spacing-md);
-    top: 8px;
+.header-titles {
+    text-align: center;
 }
 
 .header-titles h1 {
@@ -102,6 +92,12 @@ body {
     margin: 5px 0 0 0;
     color: rgba(255, 255, 255, 0.85);
     font-weight: 300;
+}
+
+.header-session-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
 }
 
 /* Cards & Layout */
@@ -2045,14 +2041,20 @@ main {
 
     .section-header,
     .survey-list-item,
-    .step-nav,
     .admin-card-header {
         align-items: stretch;
         flex-direction: column;
     }
+    
+    .step-nav {
+        flex-direction: column;
+        gap: 16px;
+    }
 
     .survey-list-cta {
-        align-self: flex-start;
+        align-self: stretch;
+        text-align: center;
+        margin-top: 8px;
     }
 
     .question-meta-row {
@@ -2061,6 +2063,10 @@ main {
 
     .question-label {
         font-size: 1.12rem;
+    }
+    
+    .option-label {
+        padding: 20px 16px; /* Larger touch targets for mobile */
     }
 
     .step-nav .btn-primary,
@@ -2076,6 +2082,14 @@ main {
     .form-control-compact {
         width: 100%;
         max-width: none;
+    }
+    
+    .admin-tabs {
+        flex-direction: column;
+    }
+    
+    .admin-tab-btn {
+        width: 100%;
     }
 }
 
