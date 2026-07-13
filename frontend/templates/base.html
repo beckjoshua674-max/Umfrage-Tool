@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Ask Alma - Hochschule Kehl{% endblock %}</title>
     <!-- Verweist auf den static-Ordner in Flask -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5.2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.6.0">
 </head>
 <body>
     <header class="app-header">
         <div class="container header-content">
-            
+            <a href="{{ url_for('admin') if session.get('role') == 'admin' else url_for('index') }}" class="header-logo-link" aria-label="Zur Startseite">
+                <img src="{{ url_for('static', filename='img/Logo_Hochschule_Kehl.png') }}" alt="Hochschule Kehl" class="header-logo">
+            </a>
+
             <div class="header-titles">
                 <h1>{% block header_title %}Ask Alma Evaluation{% endblock %}</h1>
                 <p>{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>
@@ -28,7 +31,7 @@
 
     <main class="container">
         <!-- Globaler Benachrichtigungs-Container -->
-        <div id="global-notifications" style="position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; pointer-events: none; gap: 10px; margin-top: 10px;"></div>
+        <div id="global-notifications" class="global-notifications"></div>
 
         <script>
         window.showNotification = function(text, type) {
@@ -168,9 +171,9 @@
     </button>
 
     <!-- Globaler Lade-Indikator -->
-    <div id="global-loading-spinner" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.75); z-index:100000; align-items:center; justify-content:center; flex-direction:column; gap:15px; backdrop-filter: blur(2px);">
+    <div id="global-loading-spinner" class="global-loading-spinner">
         <div class="loading-spinner-circle"></div>
-        <span style="font-weight: 500; color: var(--color-hs-kehl); font-size: 1.05rem; font-family: inherit;">Wird geladen...</span>
+        <span class="loading-spinner-label">Wird geladen...</span>
     </div>
 
     <script>

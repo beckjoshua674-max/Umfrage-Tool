@@ -5,51 +5,45 @@
 {% block header_subtitle %}Bitte wählen Sie eine Umfrage aus, um fortzufahren.{% endblock %}
 
 {% block content %}
-<div style="max-width: 650px; margin: 0 auto;">
-    <!-- Willkommenstext und Erklärung -->
-    <div class="welcome-section" style="background: linear-gradient(135deg, rgba(30, 64, 175, 0.05) 0%, rgba(30, 64, 175, 0.1) 100%); border: 1.5px solid rgba(30, 64, 175, 0.2); border-radius: 12px; padding: 24px; margin-bottom: 30px; box-shadow: var(--box-shadow); text-align: center;">
-        <h2 style="color: var(--color-hs-kehl); margin-top: 0; font-weight: 700; font-size: 1.35rem; margin-bottom: 10px;">Willkommen bei Ask Alma</h2>
-        <p style="color: var(--color-text-dark); font-size: 0.95rem; line-height: 1.5; margin: 0;">
-            Herzlich willkommen auf dem offiziellen Befragungs- und Evaluationsportal. Ask Alma unterstützt die Hochschule Kehl dabei, das Feedback von Studierenden und Lehrenden strukturiert zu erfassen, um die Studienbedingungen kontinuierlich weiterzuentwickeln. Bitte wählen Sie eine der unten gelisteten Umfragen aus.
+<div class="survey-start">
+    <section class="welcome-panel">
+        <div class="eyebrow">Hochschule Kehl</div>
+        <h2>Willkommen bei Ask Alma</h2>
+        <p>
+            Das Befragungs- und Evaluationsportal sammelt Feedback strukturiert und anonymisiert.
+            Wählen Sie die passende Befragung aus und beantworten Sie die Fragen Schritt für Schritt.
         </p>
-    </div>
+    </section>
 
-    <section class="survey-box role-select-box" style="padding: 30px; border-radius: 12px; box-shadow: var(--box-shadow); background: #ffffff;">
-        <h3 style="color: var(--color-text-dark); margin-top: 0; margin-bottom: 20px; font-size: 1.15rem; font-weight: 600; text-align: center; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">Verfügbare Befragungen</h3>
-
-        <div class="survey-lists" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
-            {% if umfragen %}
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                {% for umfrage in umfragen %}
-                    <a href="{{ url_for('survey', survey_id=umfrage.survey_id) }}" class="role-btn-item" style="text-align: left; padding: 18px; border: 1.5px solid #e2e8f0; border-radius: 8px; text-decoration: none; display: block; background: #fff; transition: all 0.25s;">
-                        <strong style="display: block; color: var(--color-hs-kehl); font-size: 1.05rem; margin-bottom: 4px; font-weight: 600;">{{ umfrage.title }}</strong>
-                        {% if umfrage.description %}
-                            <span style="color: var(--color-text-light); font-size: 0.85rem; font-weight: normal; display: block; line-height: 1.4;">{{ umfrage.description }}</span>
-                        {% endif %}
-                    </a>
-                {% endfor %}
-                </div>
-            {% else %}
-                <p style="color: var(--color-text-light); font-style: italic; font-size: 0.9rem; text-align: center; padding: 20px 0;">Aktuell stehen keine Befragungen zur Teilnahme bereit.</p>
-            {% endif %}
+    <section class="survey-list-card">
+        <div class="section-header">
+            <div>
+                <h3>Verfügbare Befragungen</h3>
+                <p class="section-subtitle">Aktive Umfragen zur Teilnahme</p>
+            </div>
         </div>
 
-        <div style="text-align: center; margin-top: 25px;">
-            <a href="{{ url_for('login_page', role='admin') }}" class="btn-primary" style="display: inline-block; text-decoration: none; text-align: center; padding: 12px 30px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; box-shadow: 0 4px 10px rgba(30, 64, 175, 0.2);">
-                Verwaltung
+        {% if umfragen %}
+        <div class="survey-list">
+            {% for umfrage in umfragen %}
+            <a href="{{ url_for('survey', survey_id=umfrage.survey_id) }}" class="survey-list-item">
+                <span class="survey-list-content">
+                    <strong class="survey-list-title">{{ umfrage.title }}</strong>
+                    {% if umfrage.description %}
+                    <span class="survey-list-description">{{ umfrage.description }}</span>
+                    {% endif %}
+                </span>
+                <span class="survey-list-cta">Teilnehmen</span>
             </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">Aktuell stehen keine Befragungen zur Teilnahme bereit.</p>
+        {% endif %}
+
+        <div class="admin-entry">
+            <a href="{{ url_for('login_page', role='admin') }}" class="btn-secondary">Verwaltung</a>
         </div>
     </section>
 </div>
-
-<style>
-    .role-btn-item {
-        color: var(--color-text);
-    }
-    .role-btn-item:hover {
-        border-color: var(--color-hs-kehl) !important;
-        box-shadow: 0 2px 6px rgba(0, 74, 150, 0.08);
-        transform: translateY(-1px);
-    }
-</style>
 {% endblock %}

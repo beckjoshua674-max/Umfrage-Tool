@@ -45,12 +45,12 @@
         {% endif %}
     {% endfor %}
     {% if ns.hat_daten %}
-    <div class="card" style="margin-bottom: 24px;">
-        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+    <div class="card admin-card">
+        <div class="card-header admin-card-header">
+            <div class="admin-card-title-row">
                 <h2>Auswertung</h2>
                 {% if umfragen %}
-                <select id="stats-filter-select" class="form-control" style="width: auto; max-width: 300px; display: inline-block; padding: 6px 12px; font-size: 0.9rem;" onchange="filterStatistiken(this.value)">
+                <select id="stats-filter-select" class="form-control form-control-compact" onchange="filterStatistiken(this.value)">
                     <option value="alle">Alle Umfragen anzeigen</option>
                     {% for u in umfragen %}
                     <option value="{{ u.survey_id }}">{{ u.title }}{% if u._rolle %} ({{ u._rolle }}){% endif %}</option>
@@ -58,13 +58,11 @@
                 </select>
                 {% endif %}
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                <button type="button" class="btn-secondary" onclick="aktualisiereErgebnisse()"
-                    style="padding: 8px 18px; font-size:0.9rem; cursor:pointer; background:#ffffff; color:var(--color-text-dark); border:1.5px solid #cbd5e1; font-weight:600;">
+            <div class="button-row">
+                <button type="button" class="btn-secondary btn-soft btn-compact" onclick="aktualisiereErgebnisse()">
                     Aktualisieren
                 </button>
-                <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+                <a href="{{ url_for('admin_results_export') }}" class="btn-primary btn-compact"
                    onclick="handleCsvExport(event, 'stats')">
                     CSV exportieren
                 </a>
@@ -72,13 +70,13 @@
         </div>
         <div class="card-body">
             <!-- Teilnahme-Statistik -->
-            <div class="teilnahme-statistik-dashboard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 28px;">
+            <div class="teilnahme-statistik-dashboard stats-grid">
                 {% for u in umfragen %}
-                <div class="stats-card-item stats-card-clickable" data-survey-id="{{ u.survey_id }}" onclick="waehleUmfrageAus('{{ u.survey_id }}')" style="background: var(--color-white); border: 1px solid #dfe7ef; padding: 18px; border-radius: 8px; box-shadow: var(--box-shadow); transition: all 0.25s; text-align: center; cursor: pointer;">
-                    <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--color-text-light); font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin-bottom: 4px;">{{ u.title }}</div>
-                    <div style="font-size: 1.8rem; font-weight: 700; color: var(--color-text-dark);">
+                <div class="stats-card-item stats-card-clickable" data-survey-id="{{ u.survey_id }}" onclick="waehleUmfrageAus('{{ u.survey_id }}')">
+                    <div class="stats-card-title">{{ u.title }}</div>
+                    <div class="stats-card-number">
                         {{ teilnahme_nach_umfrage.get(u.survey_id, 0) }}
-                        <span style="font-size: 0.85rem; font-weight: normal; color: var(--color-text-light);">Teilnahmen</span>
+                        <span class="stats-card-unit">Teilnahmen</span>
                     </div>
                 </div>
                 {% endfor %}
@@ -94,21 +92,21 @@
                     {% if zaehler.get('_typ') == 'text' %}
                         {% set antworten = zaehler.get('_antworten', []) %}
                         {% if antworten|length == 0 %}
-                            <p style="color: var(--color-text-light); font-style: italic;">Noch keine Freitext-Antworten für diese Frage.</p>
+                            <p class="empty-note">Noch keine Freitext-Antworten für diese Frage.</p>
                         {% else %}
-                            <div class="text-antworten-container" style="max-height: 200px; overflow-y: auto; padding: 10px; background: rgba(0, 74, 150, 0.02); border: 1px solid #dfe7ef; border-radius: 4px; margin-top: 8px;">
-                                <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.45;">
+                            <div class="text-antworten-container">
+                                <ul class="text-answers-list">
                                 {% for ant in antworten %}
-                                    <li style="margin-bottom: 6px; color: var(--color-text-dark); word-break: break-word;">{{ ant }}</li>
+                                    <li class="text-answer-item">{{ ant }}</li>
                                 {% endfor %}
                                 </ul>
                             </div>
-                            <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ antworten|length }} Antwort(en) gesamt</p>
+                            <p class="stat-total-note">{{ antworten|length }} Antwort(en) gesamt</p>
                         {% endif %}
                     {% else %}
                         {% set gesamt = zaehler['_gesamt'] %}
                         {% if gesamt == 0 %}
-                            <p style="color: var(--color-text-light); font-style: italic;">Noch keine Antworten für diese Frage.</p>
+                            <p class="empty-note">Noch keine Antworten für diese Frage.</p>
                         {% else %}
                             <div class="statistik-balken-container">
                                 {% for option, anzahl in zaehler.items() %}
@@ -124,7 +122,7 @@
                                 {% endif %}
                                 {% endfor %}
                             </div>
-                            <p style="font-size:0.8rem; color: var(--color-text-light); margin-top:4px;">{{ gesamt }} Antwort(en) gesamt</p>
+                            <p class="stat-total-note">{{ gesamt }} Antwort(en) gesamt</p>
                         {% endif %}
                     {% endif %}
                 </div>
@@ -140,21 +138,19 @@
     <!-- ============================================================
          ROHDATEN-BEREICH: Tabelle der eingegangenen Ergebnisse (Priorität 2)
          ============================================================ -->
-    <div class="card">
-        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div class="card admin-card">
+        <div class="card-header admin-card-header">
             <div>
                 <h2>Eingegangene Ergebnisse</h2>
-                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
+                <p class="admin-card-subtitle">
                     {{ ergebnisse|length }} Antwort(en) gesamt
                 </p>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                <button type="button" class="btn-secondary" onclick="aktualisiereErgebnisse()"
-                    style="padding: 8px 18px; font-size:0.9rem; cursor:pointer; background:#ffffff; color:var(--color-text-dark); border:1.5px solid #cbd5e1; font-weight:600;">
+            <div class="button-row">
+                <button type="button" class="btn-secondary btn-soft btn-compact" onclick="aktualisiereErgebnisse()">
                     Aktualisieren
                 </button>
-                <a href="{{ url_for('admin_results_export') }}" class="btn-primary"
-                   style="text-decoration:none; padding: 8px 18px; font-size:0.9rem;"
+                <a href="{{ url_for('admin_results_export') }}" class="btn-primary btn-compact"
                    onclick="handleCsvExport(event, 'results')">
                     CSV exportieren
                 </a>
@@ -168,7 +164,7 @@
                 <button class="filter-btn aktiv" onclick="filterErgebnisse('alle', this)">Alle</button>
                 {% for u in umfragen %}
                 <button class="filter-btn" onclick="filterErgebnisse('{{ u.survey_id }}', this)">
-                    {{ u.title }} <span style="font-size:0.75rem;opacity:0.7;">({{ u._rolle }})</span>
+                    {{ u.title }} <span class="filter-role">({{ u._rolle }})</span>
                 </button>
                 {% endfor %}
             </div>
@@ -204,9 +200,9 @@
                                     <ul class="answers-list">
                                         {% for key, val in r.get('answers', {}).items() %}
                                         {% set q_label = fragen_map.get(r.get('survey_id'), {}).get(key, key) %}
-                                        <li class="antwort-item {% if loop.index > 2 %}versteckt{% endif %}" style="margin-bottom: 5px; list-style-type: none;">
-                                            <strong class="q-key" style="display: block; font-weight: 600; color: var(--color-text-dark); margin-bottom: 2px; font-size: 0.9rem;">{{ q_label }}</strong>
-                                            <span class="q-val" style="display: block; padding-left: 10px; border-left: 2.5px solid var(--color-hs-kehl); color: var(--color-text-light); font-size: 0.88rem;">
+                                        <li class="antwort-item answer-preview-item {% if loop.index > 2 %}versteckt{% endif %}">
+                                            <strong class="q-key answer-question">{{ q_label }}</strong>
+                                            <span class="q-val answer-value">
                                                 {% if val is string %}
                                                     {{ val }}
                                                 {% else %}
@@ -288,56 +284,56 @@
         </div>
         <div class="card-body">
             <div id="erstellen-status" class="builder-status" style="display:none;"></div>
-            <div class="import-bereich" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
-                <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.1rem; color: var(--color-text-dark);">Umfrage importieren</h3>
-                <p style="margin: 0 0 12px; color: var(--color-text-light); font-size: 0.85rem; line-height: 1.4;">
+            <div class="admin-tool-panel import-bereich">
+                <h3>Umfrage importieren</h3>
+                <p>
                     Laden Sie eine JSON-Datei hoch, um eine fertige Umfragestruktur zu importieren und zu speichern.
                 </p>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    <div style="width: 100%;">
-                        <label class="form-label" style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">Name für die importierte Umfrage:</label>
-                        <input type="text" id="import-titel-input" class="form-control" placeholder="Titel überschreiben..." style="width: 100%; font-size: 0.9rem;">
+                <div class="admin-tool-stack">
+                    <div>
+                        <label class="form-label">Name für die importierte Umfrage:</label>
+                        <input type="text" id="import-titel-input" class="form-control" placeholder="Titel überschreiben...">
                     </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; width: 100%;">
-                        <input type="file" id="import-datei-input" accept=".json" style="font-size: 0.9rem; flex-grow: 1;">
-                        <button class="btn-primary" onclick="importiereUmfrage()" style="padding: 8px 20px; font-size: 0.9rem; background-color: var(--color-hs-kehl); border-color: var(--color-hs-kehl); white-space: nowrap;">Importieren</button>
+                    <div class="admin-tool-row">
+                        <input type="file" id="import-datei-input" accept=".json" class="file-input">
+                        <button class="btn-primary btn-compact" onclick="importiereUmfrage()">Importieren</button>
                     </div>
                 </div>
             </div>
 
             <!-- Vorlagen-Bereich (Eigener Block im gleichen Stil darüber) -->
-            <div class="vorlagen-bereich" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
-                <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 1.1rem; color: var(--color-text-dark);">Umfrage-Vorlage laden</h3>
-                <p style="margin: 0 0 12px; color: var(--color-text-light); font-size: 0.85rem; line-height: 1.4;">
+            <div class="admin-tool-panel vorlagen-bereich">
+                <h3>Umfrage-Vorlage laden</h3>
+                <p>
                     Wählen Sie eine der standardmäßigen Vorlagen aus, um das Formular direkt zu befüllen.
                 </p>
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; width: 100%;">
-                    <select id="vorlage-auswahl-select" class="form-control" style="flex-grow: 1; padding: 6px 12px; font-size: 0.9rem;">
+                <div class="admin-tool-row">
+                    <select id="vorlage-auswahl-select" class="form-control">
                         <option value="student">Studentenevaluation</option>
                         <option value="professor">Professorenevaluation</option>
                     </select>
-                    <button class="btn-primary" onclick="triggerVorlageLaden()" style="padding: 8px 20px; font-size: 0.9rem; background-color: var(--color-hs-kehl); border-color: var(--color-hs-kehl); white-space: nowrap;">Vorlage laden</button>
+                    <button class="btn-primary btn-compact" onclick="triggerVorlageLaden()">Vorlage laden</button>
                 </div>
             </div>
 
             <!-- Umfrage-Metadaten -->
             <div class="erstellen-meta">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600;">Name für die neue Umfrage *</label>
-                    <input type="text" id="neu-titel" class="form-control" placeholder="z.B. Studentenbefragung Wintersemester" required style="width: 100%;">
+                <div class="form-group">
+                    <label class="form-label">Name für die neue Umfrage *</label>
+                    <input type="text" id="neu-titel" class="form-control" placeholder="z.B. Studentenbefragung Wintersemester" required>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label class="form-label" style="font-weight: 600;">Beschreibung (optional)</label>
-                    <input type="text" id="neu-beschreibung" class="form-control" placeholder="Kurze Beschreibung der Umfrage" style="width: 100%;">
+                <div class="form-group">
+                    <label class="form-label">Beschreibung (optional)</label>
+                    <input type="text" id="neu-beschreibung" class="form-control" placeholder="Kurze Beschreibung der Umfrage">
                 </div>
             </div>
 
-            <hr style="border: none; border-top: 1px solid #e9ecef; margin: 24px 0;">
+            <hr class="section-divider">
 
             <!-- Fragen-Liste (dynamisch per JS) -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="margin: 0;">Fragen <span id="fragen-anzahl-badge" class="badge">0</span></h3>
+            <div class="questions-header">
+                <h3>Fragen <span id="fragen-anzahl-badge" class="badge">0</span></h3>
                 <button class="btn-primary" onclick="frageHinzufuegen()">
                     Frage hinzufügen
                 </button>
@@ -350,8 +346,8 @@
                 </div>
             </div>
 
-            <div style="margin-top: 24px; display: flex; gap: 12px;">
-                <button class="btn-primary" onclick="umfrageSpeichern()" style="font-size: 1rem; padding: 12px 28px;">
+            <div class="form-action-row">
+                <button class="btn-primary" onclick="umfrageSpeichern()">
                     Umfrage speichern
                 </button>
                 <button class="btn-secondary" onclick="formularZuruecksetzen()">
