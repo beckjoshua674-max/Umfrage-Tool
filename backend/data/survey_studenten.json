@@ -1,0 +1,58 @@
+{
+  "survey_id": "ask_alma_studierende_v1",
+  "title": "Teil 1: Studierendenbefragung im Rahmen der Einführung von Ask Alma",
+  "description": "Liebe Studierende,\n\nwir freuen uns, dass Sie an unserer Befragung zur Nutzung von Ask Alma teilnehmen. Die Umfrage ist anonym und alle erhobenen Daten werden ausschließlich für Evaluationszwecke verwendet. Die Teilnahme ist freiwillig und nimmt 3-5 Minuten Ihrer Zeit in Anspruch.\n\nAsk Alma ist ein datenschutzkonformes, generatives KI-Tool, das im Sommersemester 2026 in vereinzelten Lehrveranstaltungen an Ihrer Hochschule erprobt wurde.\n\nIn diesem Fragebogen möchten wir Ihre Erfahrungen mit Ask Alma erfassen, um die Potenziale und Herausforderungen der KI-Nutzung in der Lehre besser zu verstehen. Ihre Teilnahme hilft uns, wertvolle Erkenntnisse zu gewinnen, um die Hochschullehre zukunftsfähig zu gestalten.\n\nWir danken Ihnen herzlich für Ihre Unterstützung.\n\nMit freundlichen Grüßen\n\nIhr Moodle-Support Team",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "yes_no",
+      "label": "Haben Sie Ask Alma bereits genutzt?",
+      "required": true
+    },
+    {
+      "id": "q2a",
+      "type": "single_choice",
+      "label": "Wie regelmäßig haben Sie Ask Alma im Rahmen der Lehrveranstaltung genutzt (Präsenz- und Selbstlernphase)?",
+      "required": true,
+      "options": [
+        { "value": "gar_nicht", "text": "Gar nicht" },
+        { "value": "weniger_einmal_monat", "text": "Weniger als ein Mal im Monat" },
+        { "value": "mehrmals_monatlich", "text": "Mehrmals monatlich" },
+        { "value": "mehrmals_woechentlich", "text": "Mehrmals wöchentlich" },
+        { "value": "taeglich", "text": "Täglich" }
+      ]
+    },
+    {
+      "id": "q2b",
+      "type": "single_choice",
+      "label": "Wie regelmäßig haben Sie andere generative KI-Tools mit privatem Account im Rahmen der Lehrveranstaltung genutzt (Präsenz- und Selbstlernphase)?",
+      "required": true,
+      "options": [
+        { "value": "gar_nicht", "text": "Gar nicht" },
+        { "value": "weniger_einmal_monat", "text": "Weniger als ein Mal im Monat" },
+        { "value": "mehrmals_monatlich", "text": "Mehrmals monatlich" },
+        { "value": "mehrmals_woechentlich", "text": "Mehrmals wöchentlich" },
+        { "value": "taeglich", "text": "Täglich" }
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "single_choice",
+      "label": "Wie hilfreich ist Ask Alma für Ihr Studium?",
+      "required": true,
+      "options": [
+        { "value": "ueberhaupt_nicht_hilfreich", "text": "Überhaupt nicht hilfreich" },
+        { "value": "eher_nicht_hilfreich", "text": "Eher nicht hilfreich" },
+        { "value": "teils_teils", "text": "Teils/teils" },
+        { "value": "eher_hilfreich", "text": "Eher hilfreich" },
+        { "value": "sehr_hilfreich", "text": "Sehr hilfreich" }
+      ]
+    },
+    {
+      "id": "q4",
+      "type": "text",
+      "label": "Welche Funktionen haben Ihnen bei der Nutzung von Ask Alma gefehlt?",
+      "required": false
+    }
+  ]
+}

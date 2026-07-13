@@ -24,6 +24,9 @@
     <button class="admin-tab-btn" data-tab="erstellen" onclick="zeigeTab('erstellen')">
         Umfrage erstellen
     </button>
+    <button class="admin-tab-btn" data-tab="linkerstellung" onclick="zeigeTab('linkerstellung')">
+        Linkerstellung
+    </button>
 </div>
 
 
@@ -353,6 +356,77 @@
                 <button class="btn-secondary" onclick="formularZuruecksetzen()">
                     Zurücksetzen
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     TAB 4: LINKERSTELLUNG
+     ============================================================ -->
+<div id="tab-linkerstellung" class="admin-tab-inhalt">
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header">
+            <h2>Neuen Link generieren</h2>
+            <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
+                Wählen Sie die Umfragen aus, die über den neuen Link erreichbar sein sollen.
+            </p>
+        </div>
+        <div class="card-body">
+            <div style="margin-bottom: 20px;">
+                <label class="builder-label">Verfügbare Umfragen:</label>
+                <div style="display: flex; flex-direction: column; gap: 10px;" id="link-surveys-container">
+                    {% for u in umfragen %}
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" name="link-survey-select" value="{{ u.survey_id }}">
+                        {{ u.title }} <span style="color:var(--color-text-light); font-size: 0.8rem;">({{ u.survey_id }})</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <button class="btn-primary" onclick="generiereLink()">Link erstellen</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Bestehende Links</h2>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Link-Token</th>
+                            <th>Zugewiesene Umfragen</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if links %}
+                            {% for token, surveys in links.items() %}
+                            <tr>
+                                <td>
+                                    <span class="badge">{{ token }}</span><br>
+                                    <a href="/link/{{ token }}" target="_blank" style="font-size: 0.85rem; margin-top: 4px; display: inline-block;">/link/{{ token }}</a>
+                                </td>
+                                <td>
+                                    {% for s in surveys %}
+                                    <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block;">{{ s }}</span><br>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    <button class="btn-secondary" style="color: #dc2626; border-color: #fca5a5;" onclick="loescheLink('{{ token }}')">Löschen</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: var(--color-text-light);">Keine Links vorhanden.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -1623,6 +1697,63 @@
     function escapeHtml(str) {
         if (typeof str !== 'string') return '';
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    // -------------------------------------------------------
+    // Linkerstellung
+    // -------------------------------------------------------
+    function generiereLink() {
+        var checkboxes = document.querySelectorAll('input[name="link-survey-select"]:checked');
+        var selected = [];
+        checkboxes.forEach(function(cb) {
+            selected.push(cb.value);
+        });
+        
+        if (selected.length === 0) {
+            window.showNotification('Bitte wählen Sie mindestens eine Umfrage aus.', 'error');
+            return;
+        }
+        
+        var btn = event.target;
+        btn.disabled = true;
+        btn.innerText = 'Wird erstellt...';
+        
+        fetch('/admin/links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ surveys: selected })
+        })
+        .then(function(res) {
+            if (res.ok) return res.json();
+            throw new Error('Fehler beim Erstellen des Links');
+        })
+        .then(function(data) {
+            window.showNotification('Link erfolgreich erstellt!', 'success');
+            setTimeout(function() { window.location.hash = 'tab-linkerstellung'; window.location.reload(); }, 1000);
+        })
+        .catch(function(err) {
+            window.showNotification(err.message, 'error');
+            btn.disabled = false;
+            btn.innerText = 'Link erstellen';
+        });
+    }
+
+    function loescheLink(token) {
+        if (!confirm('Möchten Sie diesen Link wirklich löschen?')) return;
+        
+        fetch('/admin/links/' + token, {
+            method: 'DELETE'
+        })
+        .then(function(res) {
+            if (res.ok) {
+                window.showNotification('Link erfolgreich gelöscht.', 'success');
+                setTimeout(function() { window.location.hash = 'tab-linkerstellung'; window.location.reload(); }, 1000);
+            } else {
+                throw new Error('Fehler beim Löschen');
+            }
+        })
+        .catch(function(err) {
+            window.showNotification(err.message, 'error');
+        });
     }
 </script>
 
