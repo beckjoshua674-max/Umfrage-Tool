@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Ask Alma - Umfrage-Editor{% endblock %}
+{% block title %}Umfrage-Tool - Umfrage-Editor{% endblock %}
 {% block header_title %}Umfrage-Editor{% endblock %}
 {% block header_subtitle %}Neue Umfrage visuell erstellen und direkt an den Server senden{% endblock %}
 
@@ -19,13 +19,6 @@
 
 <!-- Steuerleiste über dem Editor -->
 <div class="builder-toolbar">
-    <div class="builder-toolbar-left">
-        <label for="survey-role-select" class="builder-label">Zielgruppe der Umfrage:</label>
-        <select id="survey-role-select" class="form-control builder-select">
-            <option value="student">Studenten</option>
-            <option value="professor">Professoren</option>
-        </select>
-    </div>
     <div class="builder-toolbar-right">
         <button id="btn-speichern" class="btn-primary">
             Umfrage speichern
@@ -84,7 +77,7 @@
 
     // Startkonfiguration: leere Umfrage mit deutschem Platzhalter
     creator.JSON = {
-        title: "Neue Ask-Alma-Umfrage",
+        title: "Neue Umfrage",
         description: "Bitte füllen Sie alle Fragen aus.",
         pages: [{ name: "Seite 1", elements: [] }]
     };
@@ -123,7 +116,6 @@
     // -------------------------------------------------------
     document.getElementById("btn-speichern").addEventListener("click", function () {
         var umfrageJSON = creator.JSON;
-        var zielgruppe = document.getElementById("survey-role-select").value;
 
         // Pflichtfeld-Prüfung im Frontend
         if (!umfrageJSON || !umfrageJSON.title) {
@@ -160,17 +152,16 @@
             });
         }
 
-        // Nutzlast für den Backend-Endpunkt zusammenstellen (vgl. requirements.md 7.6)
+        // Nutzlast für den Backend-Endpunkt zusammenstellen
         var nutzlast = {
-            survey_id: "ask_alma_" + zielgruppe + "_v" + Date.now(),
+            survey_id: "survey_" + Date.now(),
             title: umfrageJSON.title,
             description: umfrageJSON.description || "",
-            role: zielgruppe,
             questions: fragen
         };
 
-        // Proxy-Endpunkt im Frontend übernimmt die Token-Weiterleitung ans Backend
-        fetch("/admin/surveys/create", {
+        // Speichern über den funktionierenden Endpunkt des Frontends
+        fetch("/admin/surveys/save", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -181,7 +172,7 @@
             if (antwort.ok) {
                 return antwort.json().then(function (daten) {
                     zeigeStatus(
-                        "Umfrage '" + nutzlast.title + "' für Zielgruppe '" + zielgruppe + "' erfolgreich gespeichert!",
+                        "Umfrage '" + nutzlast.title + "' erfolgreich gespeichert!",
                         "erfolg"
                     );
                 });

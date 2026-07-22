@@ -13,14 +13,14 @@ Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (B
 |---|---|---|---|---|
 | **Health** | `/api/health` | `GET` | Überprüfung der Backend-Erreichbarkeit | `200 OK`, `503 Service Unavailable` |
 | **Login** | `/api/login` | `POST` | Admin-Authentifizierung via Credentials | `200 OK` (liefert JWT), `401 Unauthorized` |
-| **Survey** | `/api/surveys` | `GET` | Abruf der Umfragedefinition (optional mit `?role=...`) | `200 OK`, `404 Not Found` |
+| **Survey** | `/api/surveys` | `GET` | Abruf der Umfragedefinition | `200 OK`, `404 Not Found` |
 | **Survey** | `/api/surveys` | `POST` | Erstellen oder Ändern einer Umfragedefinition (Admin, geschützt) | `201 Created`, `400 Bad Request`, `401 Unauthorized` |
 | **Results** | `/api/results` | `POST` | Einreichen von Umfrageergebnissen | `201 Created`, `400 Bad Request` |
 | **Results** | `/api/results` | `GET` | Abruf aller eingegangenen Ergebnisse für den Admin (geschützt) | `200 OK`, `401 Unauthorized` |
 | **Survey** | `/api/surveys/{survey_id}` | `DELETE` | Löschen einer Umfragedefinition (Admin, geschützt) | `204 No Content`, `401 Unauthorized`, `404 Not Found` |
 
 ### 1.2 Sicherheitsvorgaben (JWT-Token und Rollen)
-* **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/surveys` (mit optionaler Rolle), `POST /api/results`.
+* **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/surveys`, `POST /api/results`.
 * **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
 * Bei fehlendem oder ungültigem Token antwortet der Server mit `401 Unauthorized`. Besitzt das Token nicht die Rolle `admin`, antwortet der Server mit `403 Forbidden`.
 * **Prävention von Browser-Caching (Cache-Busting):** Um die Anzeige veralteter Datensätze im Dashboard zu verhindern, sendet das Backend bei `GET /api/results` den HTTP-Response-Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`. Das Frontend hängt zusätzlich bei jedem API-Aufruf an diesen Endpunkt einen dynamischen Zeitstempel-Parameter (`?t=Zeitstempel`) als Cache-Buster an.
@@ -124,8 +124,16 @@ Der Client durchläuft folgende Phasen:
 ### 3.4 Bereinigung des Admin-Headers und automatisches Session-Handling
 * Oben rechts im Admin-Header befindet sich ausschließlich ein einziger "Logout"-Button.
 * Alle redundanten Navigationselemente wie "Abmelden", "Zurück zur Startseite" oder "Lockout" sind vollständig entfernt.
-* Beim Klick auf "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die öffentliche Login- und Startseite geleitet.
+* Beim Klick auf "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die separate Login-Seite geleitet.
 * **Automatischer Logout bei URL-Wechsel:** Navigiert ein angemeldeter Administrator manuell aus dem Admin-Bereich heraus (z. B. durch Eingabe einer anderen URL wie der Startseite oder der Umfrage-Teilnahmeseite), wird die Session serverseitig beim Abfangen der Anfrage sofort und automatisch gelöscht. Das JWT-Token wird ohne manuelle Interaktion verworfen, um den Administrator-Zustand vollständig zu bereinigen.
+* **Strikte Trennung von Teilnehmer- und Administratorbereich:** Es gibt keine sichtbaren Links oder Navigations-Schaltflächen (wie z. B. einen Button „Verwaltung“), die die öffentliche Teilnehmer-Startseite mit dem Administratorbereich verbinden. Der Administratorbereich wird ausschließlich über separate Links (z. B. direktes Aufrufen von `/login` oder `/admin`) aufgerufen. Die Startseite (`/`) dient ausschließlich der Auflistung der Umfragen für Studierende/Teilnehmer.
+
+### 3.5 Fortschrittsanzeige während einer Umfrage
+* **Berechnung und Anzeige:** Während des Ausfüllens einer Umfrage wird dem Teilnehmer eine visuelle Fortschrittsanzeige (Prozentzahl und ein Fortschrittsbalken) präsentiert.
+* **Startwert:** Bei der ersten Frage (Schritt 1) startet die Anzeige bei exakt `0%` (Berechnungsformel: `(aktueller_schritt / gesamtanzahl_fragen) * 100`).
+* **Erhöhung:** Erst wenn der Teilnehmer auf „Weiter“ klickt und zur nächsten Frage gelangt, erhöht sich die Prozentzahl.
+* **Letzte Frage:** Bei der Anzeige der letzten Frage beträgt der Fortschritt noch nicht `100%` (da die Frage noch nicht abgesendet wurde).
+* **Abschluss:** Nach dem Klicken auf „Absenden“ auf der letzten Seite wird der Teilnehmer auf die Erfolgsseite weitergeleitet, auf der die Fortschrittsanzeige nun exakt `100%` anzeigt.
 
 ---
 
@@ -161,6 +169,7 @@ Das Bearbeiten und Aktualisieren bestehender Umfragen wird wie folgt geregelt:
 1. Der Client lädt die bestehende Struktur via `GET /api/surveys?role=admin` (oder mit entsprechender Rolle).
 2. Nach Modifikation im Formular-Editor sendet der Client die aktualisierte Struktur via `POST /api/surveys` an das Backend.
 3. Das Backend nimmt den Request unter JWT-Absicherung entgegen, validiert die Definition und überschreibt die bestehende JSON-Datei im Dateisystem.
+4. **Prävention von Umfrage-Duplikaten:** Durch das Bearbeiten, Speichern oder Umbenennen einer Umfrage darf im System keine zusätzliche Umfragedefinition (Duplikat) entstehen. Falls die Umfrage unter einem neuen Dateinamen gespeichert wird (z. B. basierend auf der bereinigten Survey-ID), muss die alte JSON-Modelldatei dieser Umfrage-ID deterministisch aus dem Dateisystem gelöscht werden, sodass zu jeder Zeit genau eine JSON-Datei pro Umfrage-ID existiert.
 
 ### 5.3 Verhalten der CSV-Export-Schaltflächen bei aktiver Filterung
 Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt hat (Sektion 1 via Dropdown-Menü oder Sektion 2 via Klick-Filter-Buttons) und auf eine der beiden "CSV exportieren"-Schaltflächen klickt, wird die Ausführung des Downloads unterbrochen und eine Benutzerabfrage als rein textbasiertes Browser-Modal geschaltet:
@@ -173,7 +182,7 @@ Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt h
 ### 5.4 Import-Funktion für Umfragedefinitionen
 Im Menüpunkt "Umfrage erstellen" (Tab 3) ist im oberen Bereich ein standardisiertes Datei-Upload-Feld mit der Beschriftung „Umfrage importieren“ vorhanden.
 * **Funktionsweise:** Der Administrator lädt eine lokal gespeicherte JSON-Datei hoch. Der Client liest diese Datei ein und validiert die Struktur vollständig auf Clientseite vor der Übertragung an das Backend.
-* **Validierung (Konformitätsprüfung):** Geprüft werden die Pflichtfelder `survey_id`, `title`, `role` sowie das Array `questions` (jede Frage benötigt `id`, `type`, `label`, `required` und bei Auswahlfragen ein nicht-leeres Options-Array `options` mit `value` und `text`).
+* **Validierung (Konformitätsprüfung):** Geprüft werden die Pflichtfelder `survey_id` und `title` sowie das Array `questions` (jede Frage benötigt `id`, `type`, `label`, `required` und bei Auswahlfragen ein nicht-leeres Options-Array `options` mit `value` und `text`).
 * **Fehlermeldungen:** Tritt ein Validierungsfehler auf, wird der Sendevorgang blockiert. Das System zeigt dem Administrator ganz oben eine detaillierte, sachliche rote Meldung mit genauer Nennung der fehlerhaften Frage (z. B. „Fehlendes Pflichtfeld 'type' in Frage 2“).
 * **Erfolgsfall:** Ist die Datei valide, wird sie automatisch per POST `/api/surveys` an den Server übertragen.
 
@@ -202,9 +211,10 @@ Für alle Systemmeldungen der Anwendung (wie Download-Bestätigungen, Pflichtfel
 * **Rot (Handlungsaufforderung und Fehler):** Meldungen, bei denen der Benutzer aktiv handeln muss oder ein Fehler vorliegt (nicht ausgefüllte Pflichtfragen, ungültige Wertebereiche, Serververbindungsfehler, fehlgeschlagener Login), müssen in Rot gerendert werden.
 * **Blau (Rein informativ und Erfolg):** Meldungen informativen Charakters oder Erfolgsbestätigungen (erfolgreicher Datei-Export, erfolgreiches Absenden der Antworten, erfolgreicher Login) müssen in Blau gerendert werden.
 
-### 7.3 Automatisches Ausblenden (Timeout)
-* Blaue Meldungen (Informationen und Erfolge) müssen nach 5 bis 10 Sekunden automatisch und ohne Benutzerinteraktion aus der UI ausgeblendet werden.
-* Rote Meldungen (Fehler) bleiben dauerhaft sichtbar, bis der Fehler behoben wurde oder die Meldung vom Benutzer manuell geschlossen wird.
+### 7.3 Automatisches Ausblenden (Timeout) und visuelle Ladeanzeige
+* Blaue Meldungen (Informationen und Erfolge) müssen nach exakt 2,5 Sekunden automatisch und ohne Benutzerinteraktion aus der UI ausgeblendet werden.
+* **Visuelle Fortschrittsanzeige (Countdown):** Blaue Meldungen enthalten an der Unterkante einen integrierten Fortschrittsbalken in dunkelblauer Farbe (`#0d47a1`). Dieser Balken füllt sich über die Dauer von 2,5 Sekunden von links nach rechts (0% bis 100%) und visualisiert dem Benutzer somit die verbleibende Zeit bis zum automatischen Ausblenden der Meldung.
+* Rote Meldungen (Fehler) bleiben dauerhaft sichtbar, bis der Fehler behoben wurde oder die Meldung vom Benutzer manuell geschlossen wird. Diese enthalten keinen Fortschrittsbalken.
 
 ### 7.4 Positionierung
 * Alle globalen Statusmeldungen werden einheitlich ganz oben im sichtbaren Bereich der Benutzeroberfläche platziert.

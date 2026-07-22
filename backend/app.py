@@ -87,6 +87,15 @@ def speichere_umfrage(daten):
     survey_id = daten.get("survey_id")
     sichere_id = "".join(c for c in survey_id if c.isalnum() or c in ("_", "-"))
     pfad = DATA_DIR / f"survey_{sichere_id}.json"
+
+    # Bereinigung alter Dateien mit derselben survey_id aber anderem Namen (Dopplungsprävention)
+    try:
+        _, alter_pfad = finde_umfrage_pfad_nach_id(survey_id)
+        if alter_pfad and alter_pfad.resolve() != pfad.resolve():
+            alter_pfad.unlink()
+    except Exception as e:
+        print(f"Fehler bei der Dopplungsbereinigung für {survey_id}: {e}")
+
     with pfad.open("w", encoding="utf-8") as file:
         json.dump(daten, file, ensure_ascii=False, indent=2)
         file.write("\n")

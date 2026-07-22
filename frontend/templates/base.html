@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Ask Alma - Hochschule Kehl{% endblock %}</title>
+    <title>{% block title %}Umfrage-Tool - Hochschule Kehl{% endblock %}</title>
     <!-- Verweist auf den static-Ordner in Flask -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.6.0">
 </head>
@@ -15,7 +15,7 @@
             </a>
 
             <div class="header-titles">
-                <h1>{% block header_title %}Ask Alma Evaluation{% endblock %}</h1>
+                <h1>{% block header_title %}Evaluation & Umfragen{% endblock %}</h1>
                 <p>{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>
             </div>
             
@@ -64,6 +64,8 @@
             toast.style.transform = 'translateY(-20px)';
             toast.style.minWidth = '300px';
             toast.style.justifyContent = 'space-between';
+            toast.style.position = 'relative';
+            toast.style.overflow = 'hidden';
 
             // Farbcodierung
             if (type === 'error') {
@@ -72,6 +74,21 @@
             } else {
                 toast.style.backgroundColor = '#1976d2';
                 toast.style.borderLeft = '6px solid #0d47a1';
+
+                // Fortschrittsanzeige für das automatische Ausblenden (Kap. 7.3)
+                var progressBar = document.createElement('div');
+                progressBar.style.position = 'absolute';
+                progressBar.style.bottom = '0';
+                progressBar.style.left = '0';
+                progressBar.style.height = '4px';
+                progressBar.style.backgroundColor = '#0d47a1';
+                progressBar.style.width = '0%';
+                progressBar.style.transition = 'width 2500ms linear';
+                toast.appendChild(progressBar);
+
+                setTimeout(function() {
+                    progressBar.style.width = '100%';
+                }, 50);
             }
 
             var msgSpan = document.createElement('span');
@@ -100,7 +117,7 @@
                 toast.style.transform = 'translateY(0)';
             }, 10);
 
-            // 3. Automatisches Ausblenden (Timeout 7 Sekunden fuer Info/Erfolg)
+            // 3. Automatisches Ausblenden (Timeout 2.5 Sekunden fuer Info/Erfolg)
             if (type !== 'error') {
                 setTimeout(function() {
                     if (toast.parentElement) {
@@ -108,7 +125,7 @@
                         toast.style.transform = 'translateY(-20px)';
                         setTimeout(function() { toast.remove(); }, 300);
                     }
-                }, 7000);
+                }, 2500);
             }
         };
 

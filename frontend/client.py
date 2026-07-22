@@ -38,7 +38,6 @@ def auto_logout_admin_on_leave():
         # wird die Session gelöscht (automatischer Logout bei URL-Wechsel).
         if not pfad.startswith('/admin') and not pfad.startswith('/api') and pfad not in ['/logout', '/favicon.ico'] and not pfad.startswith('/static'):
             session.clear()
-            flash("Ihre Administrator-Sitzung wurde beim Verlassen der Admin-Ansicht automatisch beendet.")
 
 
 # Konfiguration: URL des echten Backends (wird später von Codex bereitgestellt)
@@ -57,10 +56,15 @@ def get_auth_headers():
     return {}
 
 def login_required(f):
-    """Decorator: Leitet auf Login um, wenn kein Token in der Session liegt."""
+    """Decorator: Leitet auf Login um oder liefert JSON 401 bei AJAX/API-Anfragen, wenn kein Token vorhanden ist."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('token'):
+            # Bei AJAX- oder API-Anfragen (oder Nicht-GET Methoden) JSON 401 zurückgeben, um Umleitungs-Fehlverhalten zu verhindern
+            accept_header = request.headers.get('Accept', '')
+            if 'application/json' in accept_header or request.method in ['POST', 'DELETE', 'PUT'] or request.path.startswith('/api/'):
+                import json as json_mod
+                return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen. Bitte loggen Sie sich erneut ein."}), 401, {"Content-Type": "application/json; charset=utf-8"}
             flash("Bitte loggen Sie sich ein, um fortzufahren.")
             return redirect(url_for('login_page', role=request.args.get('role', '')))
         return f(*args, **kwargs)
@@ -116,7 +120,7 @@ def logout():
     """Löscht das Token aus der Session."""
     session.clear()
     flash("Sie wurden abgemeldet.")
-    return redirect(url_for('index'))
+    return redirect(url_for('login_page'))
 
 # ==============================================================
 # Hilfsfunktionen: Umfrage-Validierung (vgl. requirements.md Kap. 11 & 13)
@@ -226,19 +230,23 @@ def lese_antwort_aus_formular(frage):
 
 def pruefe_pflichtfeld(frage, antwort):
     """Prüft serverseitig, ob eine Pflichtfrage beantwortet wurde.
-    Behandelt alle 4 Fragetypen (text, single_choice, multiple_choice, rating).
-    Gibt None zurück wenn gültig, sonst eine deutsche Fehlermeldung.
-    HTML5-required gilt nur als visuelle Hilfe â€“ nie als Sicherheitsmerkmal!"""
+    Behandelt alle Fragetypen (text, single_choice, multiple_choice, rating, yes_no, date).
+    Gibt None zurück wenn gültig, sonst eine deutsche Fehlermeldung."""
     if not frage.get('required', False):
-        return None  # Keine Pflichtfrage â†’ immer gültig
+        return None  # Keine Pflichtfrage -> immer gültig
     if antwort_ist_leer(antwort):
         typ = frage.get('type', 'text')
         if typ == 'rating':
-            return "Bitte geben Sie eine Bewertung (1â€“5 Sterne) ab."
+            return "Bitte geben Sie eine Bewertung (1–5 Sterne) ab."
         elif typ in ('single_choice', 'multiple_choice'):
             return "Bitte wählen Sie mindestens eine Option aus."
-        return "Bitte beantworten Sie diese Pflichtfrage, bevor Sie fortfahren."
-    return None  # Antwort vorhanden â†’ gültig
+        elif typ == 'yes_no':
+            return "Bitte wählen Sie Ja oder Nein aus."
+        elif typ == 'date':
+            return "Bitte wählen Sie ein gültiges Datum aus."
+        else:
+            return "Bitte beantworten Sie diese Pflichtfrage, bevor Sie fortfahren."
+    return None  # Antwort vorhanden -> gültig
 
 def pruefe_payload_integritaet(survey_data, answers):
     """Prüft, ob alle Pflichtfragen der Umfrage beantwortet wurden.
@@ -459,8 +467,7 @@ def survey():
             )
             if response.status_code == 401:
                 session.clear()
-                flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
-                return redirect(url_for('login_page', role='admin'))
+                return redirect(url_for('index'))
             response.raise_for_status()
             survey_data = response.json()
             if isinstance(survey_data, list):

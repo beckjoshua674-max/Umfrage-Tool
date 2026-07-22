@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Ask Alma - Admin Dashboard{% endblock %}
+{% block title %}Umfrage-Tool - Admin Dashboard{% endblock %}
 {% block header_title %}Admin Dashboard{% endblock %}
 {% block header_subtitle %}Umfragen und Ergebnisse verwalten{% endblock %}
 
@@ -384,7 +384,7 @@
                     {% endfor %}
                 </div>
             </div>
-            <button class="btn-primary" onclick="generiereLink()">Link erstellen</button>
+            <button class="btn-primary" onclick="generiereLink(event)">Link erstellen</button>
         </div>
     </div>
 
@@ -662,6 +662,11 @@
     }
 
     function renderBearbeitenEditorInhalt(title, description) {
+        var bearbeitenTitelElement = document.getElementById('bearbeiten-titel');
+        if (bearbeitenTitelElement) {
+            bearbeitenTitelElement.textContent = 'Umfrage bearbeiten: ' + title;
+        }
+
         var inhalt = document.getElementById('bearbeiten-inhalt');
         var html = '<div id="bearbeiten-status" class="builder-status" style="display:none;"></div>';
         
@@ -1005,26 +1010,22 @@
                 window.location.reload();
                 return;
             }
-            return res.json();
+            return res.json().then(function(d) { return {ok: res.ok, daten: d}; });
         })
-        .then(function(daten) {
-            if (daten && daten.status === 'success') {
-                zeigeBearbeitenStatus('Erfolgreich gespeichert!', 'erfolg');
-                window.showNotification('Umfrage erfolgreich aktualisiert.', 'success');
-                aktualisiereErgebnisse();
-                setTimeout(function() {
+        .then(function(res) {
+            if (res.ok) {
+                zeigeBearbeitenStatus('Umfrage erfolgreich aktualisiert.', 'erfolg');
+                aktualisiereErgebnisse().then(function() {
                     var select = document.getElementById('umfrage-auswahl-select');
                     if (select) umfrageAuswahlGeaendert(select);
-                }, 600);
+                });
             } else {
-                var msg = (daten && daten.message) ? daten.message : 'Unbekannter Fehler';
-                zeigeBearbeitenStatus('Fehler: ' + msg, 'fehler');
-                window.showNotification('Fehler beim Speichern: ' + msg, 'error');
+                var msg = (res.daten && res.daten.message) ? res.daten.message : 'Unbekannter Fehler';
+                zeigeBearbeitenStatus('Fehler beim Speichern: ' + msg, 'fehler');
             }
         })
         .catch(function(err) {
-            zeigeBearbeitenStatus('Netzwerkfehler: ' + err, 'fehler');
-            window.showNotification('Verbindungsfehler: ' + err, 'error');
+            zeigeBearbeitenStatus('Verbindungsfehler: ' + err, 'fehler');
         });
     }
 
@@ -1036,7 +1037,13 @@
         fetch('/admin/surveys/delete/' + surveyId, {
             method: 'POST'
         })
-        .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
+        .then(function(r) {
+            if (r.status === 401) {
+                window.location.reload();
+                return {ok: false, daten: {message: 'Sitzung abgelaufen.'}};
+            }
+            return r.json().then(function(d) { return {ok: r.ok, daten: d}; });
+        })
         .then(function(res) {
             if (res.ok) {
                 zeigeBearbeitenStatus('&#10003; Umfrage erfolgreich gelöscht!', 'erfolg');
@@ -1653,7 +1660,7 @@
         var spinner = document.getElementById('global-loading-spinner');
         if (spinner) spinner.style.display = 'flex';
 
-        fetch(window.location.href)
+        return fetch(window.location.href)
             .then(function(res) {
                 return res.text();
             })
@@ -1661,11 +1668,11 @@
                 var parser = new DOMParser();
                 var doc = parser.parseFromString(htmlText, 'text/html');
                 
-                // 1. Aktualisiere Auswertung Sektion (Tab 4)
-                var neueAuswertung = doc.getElementById('tab-auswertung');
-                var alteAuswertung = document.getElementById('tab-auswertung');
-                if (neueAuswertung && alteAuswertung) {
-                    alteAuswertung.innerHTML = neueAuswertung.innerHTML;
+                // 1. Aktualisiere Linkerstellung Sektion (Tab 3)
+                var neueLinkerstellung = doc.getElementById('tab-linkerstellung');
+                var alteLinkerstellung = document.getElementById('tab-linkerstellung');
+                if (neueLinkerstellung && alteLinkerstellung) {
+                    alteLinkerstellung.innerHTML = neueLinkerstellung.innerHTML;
                 }
 
                 // 2. Aktualisiere Ergebnisse Sektion (Tab 1)
@@ -1701,7 +1708,7 @@
     // -------------------------------------------------------
     // Linkerstellung
     // -------------------------------------------------------
-    function generiereLink() {
+    function generiereLink(event) {
         var checkboxes = document.querySelectorAll('input[name="link-survey-select"]:checked');
         var selected = [];
         checkboxes.forEach(function(cb) {
@@ -1723,10 +1730,16 @@
             body: JSON.stringify({ surveys: selected })
         })
         .then(function(res) {
+            if (res.status === 401) {
+                window.showNotification('Sitzung abgelaufen. Leite zum Login weiter...', 'error');
+                setTimeout(function() { window.location.href = '/login'; }, 1500);
+                return null;
+            }
             if (res.ok) return res.json();
             throw new Error('Fehler beim Erstellen des Links');
         })
         .then(function(data) {
+            if (!data) return;
             window.showNotification('Link erfolgreich erstellt!', 'success');
             setTimeout(function() { window.location.hash = 'tab-linkerstellung'; window.location.reload(); }, 1000);
         })
@@ -1744,6 +1757,11 @@
             method: 'DELETE'
         })
         .then(function(res) {
+            if (res.status === 401) {
+                window.showNotification('Sitzung abgelaufen. Leite zum Login weiter...', 'error');
+                setTimeout(function() { window.location.href = '/login'; }, 1500);
+                return;
+            }
             if (res.ok) {
                 window.showNotification('Link erfolgreich gelöscht.', 'success');
                 setTimeout(function() { window.location.hash = 'tab-linkerstellung'; window.location.reload(); }, 1000);

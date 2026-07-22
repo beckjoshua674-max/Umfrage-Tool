@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}{{ survey.title if survey else 'Ask Alma' }}{% endblock %}
-{% block header_title %}{{ survey.title if survey else 'Ask Alma - Evaluation' }}{% endblock %}
+{% block title %}{{ survey.title if survey else 'Umfrage-Tool' }}{% endblock %}
+{% block header_title %}{{ survey.title if survey else 'Evaluation & Umfragen' }}{% endblock %}
 {% block header_subtitle %}{{ survey.description if survey else '' }}{% endblock %}
 
 {% block content %}
@@ -12,10 +12,10 @@
     <!-- Fortschrittsanzeige -->
     <div class="progress-info">
         <span class="progress-text">Frage {{ step + 1 }} von {{ total }}</span>
-        <span class="progress-percent">{{ ((step + 1) / total * 100) | round(0) | int }}%</span>
+        <span class="progress-percent">{{ (step / total * 100) | round(0) | int }}%</span>
     </div>
     <div class="progress-bar-track">
-        <div class="progress-bar-fill" style="width: {{ ((step + 1) / total * 100) | round(1) }}%;"></div>
+        <div class="progress-bar-fill" style="width: {{ (step / total * 100) | round(1) }}%;"></div>
     </div>
 
     <!-- Einzelne Frage -->
@@ -40,7 +40,7 @@
              Pflichtfeldprüfung erfolgt serverseitig in survey_next()
              ============================================================ -->
         {% if question.type == 'text' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -70,7 +70,7 @@
              Validierung: Wert muss in options.value enthalten sein
              ============================================================ -->
         {% elif question.type == 'single_choice' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -106,7 +106,7 @@
              Fragetyp: JA/NEIN (yes_no) – Zwei Radio-Buttons
              ============================================================ -->
         {% elif question.type == 'yes_no' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -147,7 +147,7 @@
              Fragetyp: DATUM (date) – HTML5 Date Input
              ============================================================ -->
         {% elif question.type == 'date' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -178,7 +178,7 @@
              String gespeichert (z.B. "opt1,opt2") – vgl. Kap. 13
              ============================================================ -->
         {% elif question.type == 'multiple_choice' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -228,7 +228,7 @@
              Validierung: Wert muss "1"–"5" sein – vgl. Kap. 13
              ============================================================ -->
         {% elif question.type == 'rating' %}
-        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form">
+        <form action="{{ url_for('survey_next') }}" method="POST" class="modern-form" novalidate>
             <input type="hidden" name="role" value="{{ role }}">
             <input type="hidden" name="step" value="{{ step }}">
             <input type="hidden" name="question_id" value="{{ question.id }}">
@@ -300,9 +300,56 @@
 <script>
 document.querySelectorAll('form').forEach(function(form) {
     form.addEventListener('submit', function(e) {
+        var activeElement = document.activeElement;
+        if (activeElement && activeElement.getAttribute('formaction') && activeElement.getAttribute('formaction').includes('back')) {
+            return; // Zurück-Button erlauben
+        }
+
+        // Clientseitige Validierung für Pflichtfragen
+        var isRequired = {{ 'true' if question.required else 'false' }};
+        var questionType = {{ question.type | tojson }};
+        
+        if (isRequired) {
+            var isValid = false;
+            if (questionType === 'text') {
+                var input = form.querySelector('textarea[name="answer"]');
+                var val = input ? input.value.trim() : '';
+                isValid = (val !== '');
+            } else if (questionType === 'date') {
+                var input = form.querySelector('input[name="answer"]');
+                var val = input ? input.value.trim() : '';
+                isValid = (val !== '');
+            } else if (questionType === 'multiple_choice') {
+                var checked = form.querySelectorAll('input[name="answer"]:checked');
+                isValid = (checked.length > 0);
+            } else if (questionType === 'single_choice' || questionType === 'yes_no' || questionType === 'rating') {
+                var checked = form.querySelector('input[name="answer"]:checked');
+                isValid = (checked !== null);
+            } else {
+                isValid = true; // Fallback
+            }
+            
+            if (!isValid) {
+                e.preventDefault(); // Absenden blockieren
+                
+                // Bestimme die passende Fehlermeldung
+                var fehlerMeldung = "Bitte beantworten Sie diese Pflichtfrage, bevor Sie fortfahren.";
+                if (questionType === 'rating') {
+                    fehlerMeldung = "Bitte geben Sie eine Bewertung (1–5 Sterne) ab.";
+                } else if (questionType === 'single_choice' || questionType === 'multiple_choice' || questionType === 'yes_no') {
+                    fehlerMeldung = "Bitte wählen Sie mindestens eine Option aus.";
+                } else if (questionType === 'date') {
+                    fehlerMeldung = "Bitte wählen Sie ein gültiges Datum aus.";
+                }
+                
+                window.showNotification(fehlerMeldung, 'error');
+                return;
+            }
+        }
+
+        // Deaktivieren nach einer minimalen Verzögerung
         var submitBtn = form.querySelector('.btn-submit-final');
         if (submitBtn) {
-            // Deaktivieren nach einer minimalen Verzögerung, damit der Submit-Trigger ausgeführt wird
             setTimeout(function() {
                 form.querySelectorAll('button').forEach(function(btn) {
                     btn.disabled = true;

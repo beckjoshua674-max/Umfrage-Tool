@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Ask Alma - Umfragen{% endblock %}
-{% block header_title %}Ask Alma - Evaluation{% endblock %}
+{% block title %}Umfragen{% endblock %}
+{% block header_title %}Evaluation & Umfragen{% endblock %}
 {% block header_subtitle %}Bitte wählen Sie eine Umfrage aus, um fortzufahren.{% endblock %}
 
 {% block content %}
 <div class="survey-start">
     <section class="welcome-panel">
         <div class="eyebrow">Hochschule Kehl</div>
-        <h2>Willkommen bei Ask Alma</h2>
+        <h2>Willkommen beim Umfrage-Tool</h2>
         <p>
             Das Befragungs- und Evaluationsportal sammelt Feedback strukturiert und anonymisiert.
             Wählen Sie die passende Befragung aus und beantworten Sie die Fragen Schritt für Schritt.
@@ -40,10 +40,6 @@
         {% else %}
         <p class="empty-state">Aktuell stehen keine Befragungen zur Teilnahme bereit.</p>
         {% endif %}
-
-        <div class="admin-entry">
-            <a href="{{ url_for('login_page', role='admin') }}" class="btn-secondary">Verwaltung</a>
-        </div>
     </section>
 </div>
 {% endblock %}
