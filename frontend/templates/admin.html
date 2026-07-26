@@ -56,7 +56,7 @@
                 <select id="stats-filter-select" class="form-control form-control-compact" onchange="filterStatistiken(this.value)">
                     <option value="alle">Alle Umfragen anzeigen</option>
                     {% for u in umfragen %}
-                    <option value="{{ u.survey_id }}">{{ u.title }}{% if u._rolle %} ({{ u._rolle }}){% endif %}</option>
+                    <option value="{{ u.survey_id }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% elif u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}</option>
                     {% endfor %}
                 </select>
                 {% endif %}
@@ -76,7 +76,8 @@
             <div class="teilnahme-statistik-dashboard stats-grid">
                 {% for u in umfragen %}
                 <div class="stats-card-item stats-card-clickable" data-survey-id="{{ u.survey_id }}" onclick="waehleUmfrageAus('{{ u.survey_id }}')">
-                    <div class="stats-card-title">{{ u.title }}</div>
+                    <div class="stats-card-title" style="font-weight: 700; font-size: 1rem;">Name: {{ u.title }}</div>
+                    <div style="font-size: 0.8rem; color: var(--color-text-light); margin-top: 4px; margin-bottom: 8px; word-break: break-word; overflow-wrap: anywhere;">ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} <span style="color:#d93025; font-weight:bold;">[Archiviert]</span>{% elif u.get('is_aggregated') %} <span style="color:#1a73e8; font-weight:bold;">[Gesamt]</span>{% endif %}</div>
                     <div class="stats-card-number">
                         {{ teilnahme_nach_umfrage.get(u.survey_id, 0) }}
                         <span class="stats-card-unit">Teilnahmen</span>
@@ -88,7 +89,15 @@
             {% for sid, fragen_stats in statistiken.items() %}
             {% if fragen_stats %}
             <div class="statistik-umfrage-block" data-survey-id="{{ sid }}">
-                <h3 class="statistik-umfrage-titel">Umfrage: {{ sid }}</h3>
+                <h3 class="statistik-umfrage-titel">
+                    {% set ns_titel = namespace(titel=sid) %}
+                    {% for u in umfragen %}
+                        {% if u.survey_id == sid %}
+                            {% set ns_titel.titel = u.title %}
+                        {% endif %}
+                    {% endfor %}
+                    Name: {{ ns_titel.titel }} | ID: {{ sid }}
+                </h3>
                 {% for frage_label, zaehler in fragen_stats.items() %}
                 <div class="statistik-frage-block">
                     <p class="statistik-frage-label">{{ frage_label }}</p>
@@ -167,7 +176,7 @@
                 <button class="filter-btn aktiv" onclick="filterErgebnisse('alle', this)">Alle</button>
                 {% for u in umfragen %}
                 <button class="filter-btn" onclick="filterErgebnisse('{{ u.survey_id }}', this)">
-                    {{ u.title }} <span class="filter-role">({{ u._rolle }})</span>
+                    Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% elif u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}
                 </button>
                 {% endfor %}
             </div>
@@ -196,7 +205,16 @@
                                     {{ r.timestamp[:16] | replace('T', ' ') }}
                                 {% else %}-{% endif %}
                             </td>
-                            <td><span class="badge badge-secondary">{{ r.get('survey_id', '?') }}</span></td>
+                            <td>
+                                {% set ns_titel_row = namespace(titel=r.get('survey_id', '?')) %}
+                                {% for u in umfragen %}
+                                    {% if u.survey_id == r.get('survey_id') %}
+                                        {% set ns_titel_row.titel = u.title %}
+                                    {% endif %}
+                                {% endfor %}
+                                <span style="font-weight: 600; display: block; font-size: 0.85rem;">Name: {{ ns_titel_row.titel }}</span>
+                                <span class="badge badge-secondary" style="font-size: 0.75rem; margin-top: 4px;">ID: {{ r.get('survey_id', '?') }}</span>
+                            </td>
                             <td>
                                 <!-- Kompakte Vorschau: nur 2 Antworten sichtbar -->
                                 <div class="antwort-vorschau" id="vorschau-{{ loop.index }}">
@@ -247,13 +265,15 @@
             <div class="card-header">
                 <h2>Vorhandene Umfragen</h2>
             </div>
-            <div class="card-body" style="padding: 16px;">
+            <div class="card-body" id="umfragen-auswahl-container" style="padding: 16px;">
                 {% if umfragen %}
                 <div class="form-group">
                     <label for="umfrage-auswahl-select" class="form-label" style="font-weight: 500;">Umfrage wählen:</label>
                     <select id="umfrage-auswahl-select" class="form-control" onchange="umfrageAuswahlGeaendert(this)">
                         {% for u in umfragen %}
-                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">{{ u.title }}{% if u._rolle %} ({{ u._rolle }}){% endif %}</option>
+                        {% if not u.get('is_aggregated') %}
+                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% endif %}</option>
+                        {% endif %}
                         {% endfor %}
                     </select>
                 </div>
@@ -377,10 +397,12 @@
                 <label class="builder-label">Verfügbare Umfragen:</label>
                 <div style="display: flex; flex-direction: column; gap: 10px;" id="link-surveys-container">
                     {% for u in umfragen %}
+                    {% if not u.get('is_aggregated') and u.status != 'archiviert' %}
                     <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                         <input type="checkbox" name="link-survey-select" value="{{ u.survey_id }}">
-                        {{ u.title }} <span style="color:var(--color-text-light); font-size: 0.8rem;">({{ u.survey_id }})</span>
+                        Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}
                     </label>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -411,8 +433,19 @@
                                     <a href="/link/{{ token }}" target="_blank" style="font-size: 0.85rem; margin-top: 4px; display: inline-block;">/link/{{ token }}</a>
                                 </td>
                                 <td>
+                                    {% set aktive_survey_ids = umfragen | map(attribute='survey_id') | list %}
                                     {% for s in surveys %}
-                                    <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block;">{{ s }}</span><br>
+                                        {% if s in aktive_survey_ids %}
+                                            {% set ns_u_title = namespace(title=s) %}
+                                            {% for u in umfragen %}
+                                                {% if u.survey_id == s %}
+                                                    {% set ns_u_title.title = u.title %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block;">Name: {{ ns_u_title.title }} | ID: {{ s }}</span><br>
+                                        {% else %}
+                                            <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block; text-decoration: line-through; opacity: 0.6; color: #dc2626;" title="Diese Umfrage wurde gelöscht.">ID: {{ s }} (Gelöschte Umfrage)</span><br>
+                                        {% endif %}
                                     {% endfor %}
                                 </td>
                                 <td>
@@ -619,7 +652,7 @@
         var opt = selectElement.options[selectElement.selectedIndex];
         var rolle = opt.getAttribute('data-rolle');
 
-        fetch('/api/surveys?role=admin&survey_id=' + encodeURIComponent(surveyId))
+        fetch('/api/surveys?role=admin&survey_id=' + encodeURIComponent(surveyId) + '&_t=' + new Date().getTime(), { cache: 'no-store' })
             .then(function(res) {
                 if (spinner) spinner.style.display = 'none';
                 if (res.status === 401) {
@@ -664,7 +697,7 @@
     function renderBearbeitenEditorInhalt(title, description) {
         var bearbeitenTitelElement = document.getElementById('bearbeiten-titel');
         if (bearbeitenTitelElement) {
-            bearbeitenTitelElement.textContent = 'Umfrage bearbeiten: ' + title;
+            bearbeitenTitelElement.textContent = 'Umfrage bearbeiten: Name: ' + title + ' | ID: ' + bearbeitenAktuelleSurveyId;
         }
 
         var inhalt = document.getElementById('bearbeiten-inhalt');
@@ -674,6 +707,11 @@
         html += '<div class="frage-karte" style="margin-bottom: 20px; padding: 15px; border: 1.5px solid var(--color-hs-kehl); border-radius: 4px; background: rgba(0, 74, 150, 0.02);">';
         html += '<h3 style="margin-top:0; color: var(--color-hs-kehl); font-size: 1.05rem; border-bottom: 1.5px solid var(--color-hs-kehl); padding-bottom: 5px; font-weight:600;">Allgemeine Einstellungen</h3>';
         
+        html += '<div style="margin-bottom: 12px;">';
+        html += '<label class="form-label" style="font-weight:600; display:block; margin-bottom: 4px; font-size:0.9rem;">Umfrage-ID (nicht veränderbar):</label>';
+        html += '<span style="font-family: monospace; font-size: 0.95rem; font-weight: bold; background: #eee; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; display: inline-block; word-break: break-all; overflow-wrap: anywhere;">' + escapeHtml(bearbeitenAktuelleSurveyId) + '</span>';
+        html += '</div>';
+
         html += '<div style="margin-bottom: 12px;">';
         html += '<label class="form-label" style="font-weight:600; display:block; margin-bottom: 4px; font-size:0.9rem;">Titel der Umfrage:</label>';
         html += '<input type="text" class="form-control" id="bearbeiten-input-titel" value="' + escapeHtml(title) + '" placeholder="z. B. Studentenbefragung" style="width:100%;">';
@@ -735,7 +773,8 @@
             {v:'single_choice', l:'Einzelauswahl'},
             {v:'multiple_choice', l:'Mehrfachauswahl'},
             {v:'rating', l:'Bewertung (1-5)'},
-            {v:'yes_no', l:'Ja/Nein-Auswahl'}
+            {v:'yes_no', l:'Ja/Nein-Auswahl'},
+            {v:'date', l:'Datumsauswahl'}
         ];
         typen.forEach(function(t) {
             html += '<option value="' + t.v + '"' + (typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
@@ -896,10 +935,10 @@
                 var optContainer = document.getElementById('bearbeiten-optionen-' + frage.id);
                 if (optContainer) {
                     frage.options = [];
-                    optContainer.querySelectorAll('.option-input').forEach(function(inp, oi) {
+                    optContainer.querySelectorAll('.option-input').forEach(function(inp) {
                         if (inp.value.trim()) {
                             frage.options.push({
-                                value: 'opt' + (oi + 1) + '_' + inp.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
+                                value: 'opt' + (frage.options.length + 1) + '_' + inp.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
                                 text: inp.value.trim()
                             });
                         }
@@ -944,6 +983,7 @@
             var labelInput = document.getElementById('bearbeiten-label-' + frage.id);
             if (!frage.label) {
                 if (labelInput) labelInput.style.borderColor = 'var(--color-danger)';
+                zeigeBearbeitenStatus('Fehler: Frage ' + (idx + 1) + ': Bitte füllen Sie den Fragetext aus.', 'fehler');
                 fehler = true;
                 return;
             }
@@ -959,12 +999,39 @@
             };
 
             if (frage.type === 'single_choice' || frage.type === 'multiple_choice') {
-                fragePayload.options = frage.options;
-                if (!frage.options || frage.options.length === 0) {
-                    zeigeBearbeitenStatus('Fehler: Frage ' + (idx + 1) + ' benötigt mindestens eine Option.', 'fehler');
+                var optContainer = document.getElementById('bearbeiten-optionen-' + frage.id);
+                var optInputs = optContainer ? optContainer.querySelectorAll('.option-input') : [];
+                var optionenListe = [];
+                var geseheneOpt = {};
+                optInputs.forEach(function(inp) {
+                    var valText = inp.value.trim();
+                    if (!valText) {
+                        inp.style.borderColor = '';
+                    } else {
+                        inp.style.borderColor = '';
+                        var cleanText = valText.toLowerCase();
+                        if (geseheneOpt[cleanText]) {
+                            inp.style.borderColor = 'var(--color-danger)';
+                            zeigeBearbeitenStatus('Fehler: Frage ' + (idx + 1) + ': Die Antwortoption "' + valText + '" ist doppelt vorhanden.', 'fehler');
+                            fehler = true;
+                        } else {
+                            geseheneOpt[cleanText] = true;
+                            optionenListe.push({
+                                value: 'opt' + (optionenListe.length + 1) + '_' + valText.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
+                                text: valText
+                            });
+                        }
+                    }
+                });
+                if (!fehler && optionenListe.length < 2) {
+                    optInputs.forEach(function(inp) {
+                        if (!inp.value.trim()) inp.style.borderColor = 'var(--color-danger)';
+                    });
+                    zeigeBearbeitenStatus('Fehler: Frage ' + (idx + 1) + ': Bitte füllen Sie mindestens zwei Antwortoptionen aus.', 'fehler');
                     fehler = true;
                     return;
                 }
+                fragePayload.options = optionenListe;
             }
 
             if (frage.type === 'rating') {
@@ -1014,10 +1081,20 @@
         })
         .then(function(res) {
             if (res.ok) {
-                zeigeBearbeitenStatus('Umfrage erfolgreich aktualisiert.', 'erfolg');
+                var neueId = (res.daten && res.daten.survey_id) ? res.daten.survey_id : bearbeitenAktuelleSurveyId;
+                if (res.daten && res.daten.copy_on_write && neueId !== bearbeitenAktuelleSurveyId) {
+                    zeigeBearbeitenStatus('Neue Version erstellt (' + neueId + '). Alte Version archiviert.', 'erfolg');
+                    window.showNotification('Neue Version generiert: ' + neueId, 'info');
+                } else {
+                    zeigeBearbeitenStatus('Umfrage erfolgreich aktualisiert.', 'erfolg');
+                }
+                bearbeitenAktuelleSurveyId = neueId;
                 aktualisiereErgebnisse().then(function() {
                     var select = document.getElementById('umfrage-auswahl-select');
-                    if (select) umfrageAuswahlGeaendert(select);
+                    if (select) {
+                        select.value = neueId;
+                        umfrageAuswahlGeaendert(select);
+                    }
                 });
             } else {
                 var msg = (res.daten && res.daten.message) ? res.daten.message : 'Unbekannter Fehler';
@@ -1164,7 +1241,8 @@
                 {v:'single_choice', l:'Einzelauswahl'},
                 {v:'multiple_choice', l:'Mehrfachauswahl'},
                 {v:'rating', l:'Bewertung (1-5)'},
-                {v:'yes_no', l:'Ja/Nein-Auswahl'}
+                {v:'yes_no', l:'Ja/Nein-Auswahl'},
+                {v:'date', l:'Datumsauswahl'}
             ];
             typen.forEach(function(t) {
                 html += '<option value="' + t.v + '"' + (frage.typ === t.v ? ' selected' : '') + '>' + t.l + '</option>';
@@ -1280,6 +1358,7 @@
 
             if (!label) {
                 labelFeld.style.borderColor = 'var(--color-danger)';
+                zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Bitte füllen Sie den Fragetext aus.', 'fehler');
                 fehler = true; return;
             }
             labelFeld.style.borderColor = '';
@@ -1296,16 +1375,32 @@
                 var optContainer = document.getElementById('neu-optionen-' + frage.id);
                 var optInputs = optContainer ? optContainer.querySelectorAll('.option-input') : [];
                 frageObj.options = [];
-                optInputs.forEach(function(inp, oi) {
-                    if (inp.value.trim()) {
-                        frageObj.options.push({
-                            value: 'opt' + (oi + 1) + '_' + inp.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
-                            text: inp.value.trim()
-                        });
+                var geseheneOpt = {};
+                optInputs.forEach(function(inp) {
+                    var valText = inp.value.trim();
+                    if (!valText) {
+                        inp.style.borderColor = '';
+                    } else {
+                        inp.style.borderColor = '';
+                        var cleanText = valText.toLowerCase();
+                        if (geseheneOpt[cleanText]) {
+                            inp.style.borderColor = 'var(--color-danger)';
+                            zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Die Antwortoption "' + valText + '" ist doppelt vorhanden.', 'fehler');
+                            fehler = true;
+                        } else {
+                            geseheneOpt[cleanText] = true;
+                            frageObj.options.push({
+                                value: 'opt' + (frageObj.options.length + 1) + '_' + valText.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
+                                text: valText
+                            });
+                        }
                     }
                 });
-                if (frageObj.options.length < 2) {
-                    zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Bitte mindestens 2 Optionen angeben.', 'fehler');
+                if (!fehler && frageObj.options.length < 2) {
+                    optInputs.forEach(function(inp) {
+                        if (!inp.value.trim()) inp.style.borderColor = 'var(--color-danger)';
+                    });
+                    zeigeErstellenStatus('Fehler: Frage ' + (idx+1) + ': Bitte mindestens 2 Antwortoptionen angeben.', 'fehler');
                     fehler = true; return;
                 }
             } else if (typ === 'rating') {
@@ -1329,7 +1424,7 @@
         if (fehler) return;
 
         var nutzlast = {
-            survey_id: 'ask_alma_' + Date.now(),
+            survey_id: 'ask_alma_' + Date.now() + '_v1',
             title: titel,
             description: beschreibung,
             questions: fragen
@@ -1345,18 +1440,25 @@
         .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, daten: d}; }); })
         .then(function(res) {
             if (res.ok) {
-                zeigeErstellenStatus('Umfrage "' + escapeHtml(titel) + '" erfolgreich gespeichert!', 'erfolg');
-                formularZuruecksetzen();
+                zeigeErstellenStatus('Umfrage "' + escapeHtml(titel) + '" erfolgreich erstellt!', 'erfolg');
+                document.getElementById('neu-umfrage-titel').value = '';
+                document.getElementById('neu-umfrage-beschreibung').value = '';
+                document.getElementById('fragen-liste').innerHTML = '';
+                bearbeitenFragenListe = [];
                 aktualisiereErgebnisse();
             } else {
-                zeigeErstellenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
+                var fehlerMeldung = res.daten.message;
+                if (Array.isArray(fehlerMeldung)) fehlerMeldung = fehlerMeldung.join('; ');
+                zeigeErstellenStatus('Serverfehler beim Erstellen: ' + (fehlerMeldung || 'Unbekannter Fehler'), 'fehler');
             }
         })
-        .catch(function(e) { zeigeErstellenStatus('Netzwerkfehler: ' + e, 'fehler'); });
+        .catch(function(err) {
+            zeigeErstellenStatus('Netzwerkfehler beim Speichern: ' + err, 'fehler');
+        });
     }
 
     // -------------------------------------------------------
-    // Import-Validierung und -Ablauf
+    // Import-Logik
     // -------------------------------------------------------
     function importiereUmfrage() {
         var input = document.getElementById('import-datei-input');
@@ -1374,7 +1476,7 @@
                 var daten = JSON.parse(jsonStr);
 
                 // Eindeutige survey_id generieren, damit Importe andere Umfragen nie überschreiben
-                daten.survey_id = 'ask_alma_' + Date.now();
+                daten.survey_id = 'ask_alma_' + Date.now() + '_v1';
 
                 var customTitel = document.getElementById('import-titel-input').value.trim();
                 if (customTitel) {
@@ -1506,18 +1608,22 @@
                         required: true,
                         options: [
                             { value: 'sehr_nutzlich', text: 'Sehr nützlich' },
-                            { value: 'wenig_nutzlich', text: 'Wenig nützlich' },
+                            { value: 'eher_nutzlich', text: 'Eher nützlich' },
+                            { value: 'teils_teils', text: 'Teils/teils' },
+                            { value: 'eher_nicht_nutzlich', text: 'Eher nicht nützlich' },
                             { value: 'gar_nicht_nutzlich', text: 'Gar nicht nützlich' }
                         ]
                     },
                     {
                         type: 'single_choice',
-                        label: 'Wie oft nutzen Sie das Online-Portal Ask-Alma?',
+                        label: 'Der Dozent ging angemessen auf Fragen und Beiträge der Studierenden ein.',
                         required: true,
                         options: [
-                            { value: 'taeglich', text: 'Täglich' },
-                            { value: 'mehrmals_woechentlich', text: 'Mehrmals wöchentlich' },
-                            { value: 'selten', text: 'Selten' }
+                            { value: 'stimme_voll_zu', text: 'Stimme voll zu' },
+                            { value: 'stimme_eher_zu', text: 'Stimme eher zu' },
+                            { value: 'stimme_teils_teils_zu', text: 'Stimme teils/teils zu' },
+                            { value: 'stimme_eher_nicht_zu', text: 'Stimme eher nicht zu' },
+                            { value: 'stimme_gar_nicht_zu', text: 'Stimme gar nicht zu' }
                         ]
                     },
                     {
@@ -1526,7 +1632,7 @@
                         label: 'Wie bewerten Sie die allgemeine Struktur der Vorlesung?',
                         required: true,
                         scale_min_label: 'Sehr gut',
-                        scale_max_label: 'Ungenügend'
+                        scale_max_label: 'Sehr schlecht'
                     },
                     {
                         type: 'yes_no',
@@ -1534,9 +1640,9 @@
                         required: true
                     },
                     {
-                        type: 'text',
+                        type: 'date',
                         label: 'An welchem Datum haben Sie diese Evaluation ausgefüllt?',
-                        required: false
+                        required: true
                     },
                     {
                         type: 'text',
@@ -1555,10 +1661,11 @@
                         label: 'Sind Sie mit den Forschungsressourcen an Ihrer Fakultät zufrieden?',
                         required: true,
                         options: [
-                            { text: 'Sehr zufrieden' },
-                            { text: 'Zufrieden' },
-                            { text: 'Teilweise zufrieden' },
-                            { text: 'Unzufrieden' }
+                            { value: 'sehr_zufrieden', text: 'Sehr zufrieden' },
+                            { value: 'eher_zufrieden', text: 'Eher zufrieden' },
+                            { value: 'teils_teils', text: 'Teils/teils' },
+                            { value: 'eher_unzufrieden', text: 'Eher unzufrieden' },
+                            { value: 'sehr_unzufrieden', text: 'Sehr unzufrieden' }
                         ]
                     },
                     {
@@ -1572,6 +1679,11 @@
                     {
                         type: 'yes_no',
                         label: 'Wurden Ihre IT-Anfragen in diesem Semester rechtzeitig gelöst?',
+                        required: true
+                    },
+                    {
+                        type: 'date',
+                        label: 'Datum der Befragung:',
                         required: true
                     },
                     {
@@ -1589,7 +1701,7 @@
         fragenListe = vorlage.questions.map(function(q, i) {
             var options = q.options ? q.options.map(function(opt, oi) {
                 return {
-                    value: 'opt' + (oi + 1) + '_' + opt.text.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20),
+                    value: opt.value || ('opt' + (oi + 1) + '_' + opt.text.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20)),
                     text: opt.text
                 };
             }) : [];
@@ -1660,7 +1772,17 @@
         var spinner = document.getElementById('global-loading-spinner');
         if (spinner) spinner.style.display = 'flex';
 
-        return fetch(window.location.href)
+        var url = window.location.href.split('#')[0];
+        var sep = url.indexOf('?') !== -1 ? '&' : '?';
+        var fetchUrl = url + sep + '_t=' + new Date().getTime();
+
+        return fetch(fetchUrl, {
+            cache: 'no-store',
+            headers: {
+                'Pragma': 'no-cache',
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
+        })
             .then(function(res) {
                 return res.text();
             })
@@ -1679,16 +1801,42 @@
                 var neueErgebnisse = doc.getElementById('tab-ergebnisse');
                 var alteErgebnisse = document.getElementById('tab-ergebnisse');
                 if (neueErgebnisse && alteErgebnisse) {
+                    var altesFilterSelect = document.getElementById('stats-filter-select');
+                    var valFilter = altesFilterSelect ? altesFilterSelect.value : 'alle';
                     alteErgebnisse.innerHTML = neueErgebnisse.innerHTML;
+                    var neuesFilterSelect = document.getElementById('stats-filter-select');
+                    if (neuesFilterSelect && valFilter) {
+                        neuesFilterSelect.value = valFilter;
+                        if (!neuesFilterSelect.value && neuesFilterSelect.options.length > 0) {
+                            neuesFilterSelect.selectedIndex = 0;
+                        }
+                        filterStatistiken(neuesFilterSelect.value);
+                    }
                 }
 
                 // 3. Aktualisiere Umfrage bearbeiten Dropdown-Auswahl (Tab 2)
-                var neueAuswahl = doc.getElementById('umfrage-auswahl-select');
-                var alteAuswahl = document.getElementById('umfrage-auswahl-select');
-                if (neueAuswahl && alteAuswahl) {
-                    var val = alteAuswahl.value;
-                    alteAuswahl.innerHTML = neueAuswahl.innerHTML;
-                    alteAuswahl.value = val;
+                var neueAuswahlContainer = doc.getElementById('umfragen-auswahl-container');
+                var alteAuswahlContainer = document.getElementById('umfragen-auswahl-container');
+                if (neueAuswahlContainer && alteAuswahlContainer) {
+                    var selectAltf = document.getElementById('umfrage-auswahl-select');
+                    var val = selectAltf ? selectAltf.value : '';
+                    alteAuswahlContainer.innerHTML = neueAuswahlContainer.innerHTML;
+                    var selectNeu = document.getElementById('umfrage-auswahl-select');
+                    if (selectNeu) {
+                        selectNeu.value = val;
+                        // Falls der alte Wert nicht existiert oder leer war, wähle den ersten
+                        if (!selectNeu.value && selectNeu.options.length > 0) {
+                            selectNeu.selectedIndex = 0;
+                        }
+                        umfrageAuswahlGeaendert(selectNeu);
+                    }
+                }
+
+                // 4. Aktualisiere den Tab-Badge für "Umfragen bearbeiten"
+                var neuerTabBadge = doc.querySelector('.admin-tab-btn[data-tab="bearbeiten"] .tab-badge');
+                var alterTabBadge = document.querySelector('.admin-tab-btn[data-tab="bearbeiten"] .tab-badge');
+                if (neuerTabBadge && alterTabBadge) {
+                    alterTabBadge.innerHTML = neuerTabBadge.innerHTML;
                 }
                 
                 if (spinner) spinner.style.display = 'none';
@@ -1702,7 +1850,8 @@
 
     // Hilfsfunktion: HTML-Sonderzeichen escapen
     function escapeHtml(str) {
-        if (typeof str !== 'string') return '';
+        if (str === null || str === undefined) return '';
+        str = String(str);
         return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
     // -------------------------------------------------------

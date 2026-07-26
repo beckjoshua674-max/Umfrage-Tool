@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import uuid
+import re
 import contextlib
 import time
 import io
@@ -29,7 +30,7 @@ if env_pfad.exists():
         print(f"Fehler beim Laden der .env Datei: {e}")
 
 JWT_SECRET = os.environ.get("ASK_ALMA_JWT_SECRET", "ask-alma-dev-secret")
-JWT_LIFETIME_SECONDS = 60 * 60 * 8
+JWT_LIFETIME_SECONDS = 30 * 60
 
 app = Flask(__name__)
 CORS(app)  # Erlaubt CORS für die gesamte API
@@ -132,6 +133,26 @@ def lade_alle_umfragen():
             continue
     return umfragen
 
+def hat_umfrage_ergebnisse(survey_id):
+    """Prüft, ob für diese Umfrage bereits Ergebnisse in der CSV existieren."""
+    csv_pfad = DATA_DIR / f"results_{survey_id}.csv"
+    if not csv_pfad.exists():
+        return False
+    try:
+        with csv_pfad.open("r", encoding="utf-8") as file:
+            zeilen = [z.strip() for z in file if z.strip()]
+            return len(zeilen) > 1  # Mehr als nur die Header-Zeile
+    except Exception:
+        return False
+
+def ist_umfrage_verlinkt(survey_id):
+    """Prüft, ob diese Umfrage in einem aktiven Link verwendet wird."""
+    links = lade_links()
+    for sid_liste in links.values():
+        if survey_id in sid_liste:
+            return True
+    return False
+
 def validiere_umfrage_definition(payload):
     if not isinstance(payload, dict):
         return "Der Request-Body muss ein JSON-Objekt sein."
@@ -149,10 +170,10 @@ def validiere_umfrage_definition(payload):
             if feld not in frage:
                 return f"Pflichtfeld '{feld}' fehlt in Frage {index}."
         if frage["type"] not in erlaubte_typen:
-            return f"Ungueltiger Fragetyp in Frage {index}."
+            return f"Ungültiger Fragetyp in Frage {index}."
         if frage["type"] in {"single_choice", "multiple_choice"}:
             if not isinstance(frage.get("options"), list) or not frage["options"]:
-                return f"Frage {index} benoetigt eine nicht-leere options-Liste."
+                return f"Frage {index} benötigt eine nicht-leere options-Liste."
     return None
 
 def antwort_ist_leer(antwort):
@@ -216,20 +237,20 @@ def validiere_ergebnis_payload(payload):
     survey_id = payload.get("survey_id")
     answers = payload.get("answers")
     if not isinstance(survey_id, str) or not survey_id.strip():
-        return "Das Feld 'survey_id' fehlt oder ist ungueltig."
+        return "Das Feld 'survey_id' fehlt oder ist ungültig."
     if not isinstance(answers, dict):
-        return "Das Feld 'answers' fehlt oder ist ungueltig."
+        return "Das Feld 'answers' fehlt oder ist ungültig."
 
     _, umfrage = finde_umfrage_nach_id(survey_id)
     if umfrage is None:
-        return f"Die uebergebene survey_id '{survey_id}' existiert nicht."
+        return f"Die übergebene survey_id '{survey_id}' existiert nicht."
 
     fragen = {frage["id"]: frage for frage in umfrage.get("questions", [])}
 
     for frage_id, frage in fragen.items():
         antwort = answers.get(frage_id)
         if frage.get("required") and antwort_ist_leer(antwort):
-            return f"Das Pflichtfeld '{frage_id}' wurde nicht ausgefuellt."
+            return f"Das Pflichtfeld '{frage_id}' wurde nicht ausgefüllt."
 
     for frage_id, antwort in answers.items():
         if frage_id not in fragen:
@@ -243,28 +264,28 @@ def validiere_ergebnis_payload(payload):
         if typ == "single_choice":
             erlaubte_werte = {option["value"] for option in frage.get("options", [])}
             if antwort not in erlaubte_werte:
-                return f"Ungueltiger Wert fuer Frage '{frage_id}'."
+                return f"Ungültiger Wert für Frage '{frage_id}'."
         elif typ == "multiple_choice":
             erlaubte_werte = {option["value"] for option in frage.get("options", [])}
             einzelwerte = normalisiere_multiple_choice_antwort(antwort, erlaubte_werte)
             if einzelwerte is None:
-                return f"Antwort fuer Frage '{frage_id}' muss eine Liste oder Text sein."
+                return f"Antwort für Frage '{frage_id}' muss eine Liste oder Text sein."
             for wert in einzelwerte:
                 if wert not in erlaubte_werte:
-                    return f"Ungueltige Option '{wert}' fuer Frage '{frage_id}'."
+                    return f"Ungültige Option '{wert}' für Frage '{frage_id}'."
         elif typ == "rating":
             try:
                 zahl = int(antwort)
             except (TypeError, ValueError):
-                return f"Bewertung fuer Frage '{frage_id}' muss eine Zahl von 1 bis 5 sein."
+                return f"Bewertung für Frage '{frage_id}' muss eine Zahl von 1 bis 5 sein."
             if not 1 <= zahl <= 5:
-                return f"Bewertung fuer Frage '{frage_id}' muss zwischen 1 und 5 liegen."
+                return f"Bewertung für Frage '{frage_id}' muss zwischen 1 und 5 liegen."
         elif typ == "text" and not isinstance(antwort, str):
-            return f"Antwort fuer Frage '{frage_id}' muss Text sein."
+            return f"Antwort für Frage '{frage_id}' muss Text sein."
         elif typ == "yes_no" and antwort not in ("ja", "nein"):
-            return f"Wert fuer Ja/Nein-Frage '{frage_id}' muss 'ja' oder 'nein' sein."
+            return f"Wert für Ja/Nein-Frage '{frage_id}' muss 'ja' oder 'nein' sein."
         elif typ == "date" and (not isinstance(antwort, str) or not antwort.strip()):
-            return f"Antwort fuer Datum-Frage '{frage_id}' muss ein gueltiges Datum sein."
+            return f"Antwort für Datum-Frage '{frage_id}' muss ein gültiges Datum sein."
     return None
 
 def formatiere_antwort_fuer_csv(antwort):
@@ -355,7 +376,9 @@ def login():
 @app.route("/api/surveys", methods=["GET"])
 def get_surveys():
     """Gibt eine Liste aller Umfragen zurück (REST Standard)."""
-    return jsonify(lade_alle_umfragen()), 200
+    resp = jsonify(lade_alle_umfragen())
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp, 200
 
 @app.route("/api/surveys/<survey_id>", methods=["GET"])
 def get_survey(survey_id):
@@ -363,15 +386,23 @@ def get_survey(survey_id):
     _, umfrage = finde_umfrage_nach_id(survey_id)
     if not umfrage:
         return jsonify({"status": "error", "message": "Umfrage nicht gefunden."}), 404
-    return jsonify(umfrage), 200
+    resp = jsonify(umfrage)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp, 200
 
 @app.route("/api/surveys", methods=["POST"])
 @token_required
 def create_survey():
     """Erstellt eine neue Umfrage."""
     payload = request.json or {}
+    if not payload.get("version"):
+        payload["version"] = 1
     if not payload.get("survey_id"):
-        payload["survey_id"] = str(uuid.uuid4())
+        payload["survey_id"] = f"ask_alma_{int(time.time()*1000)}_v{payload['version']}"
+    elif not re.search(r"_v\d+$", str(payload["survey_id"])):
+        payload["survey_id"] = f"{payload['survey_id']}_v{payload['version']}"
+    if not payload.get("status"):
+        payload["status"] = "aktiv"
     
     fehler = validiere_umfrage_definition(payload)
     if fehler:
@@ -382,31 +413,87 @@ def create_survey():
         return jsonify({"status": "error", "message": "Umfrage mit dieser ID existiert bereits. Nutze PUT zum Aktualisieren."}), 409
     
     speichere_umfrage(payload)
-    resp = jsonify({"status": "created", "survey_id": payload["survey_id"]})
+    resp = jsonify({"status": "created", "survey_id": payload["survey_id"], "version": payload["version"]})
     resp.headers["Location"] = f"/api/surveys/{payload['survey_id']}"
     return resp, 201
 
 @app.route("/api/surveys/<survey_id>", methods=["PUT"])
 @token_required
 def update_survey(survey_id):
-    """Aktualisiert eine bestehende Umfrage (oder erstellt sie, falls Idempotenz gewünscht ist)."""
+    """Aktualisiert eine bestehende Umfrage oder erzeugt per Copy-on-Write eine neue Version."""
     payload = request.json or {}
     payload["survey_id"] = survey_id
     fehler = validiere_umfrage_definition(payload)
     if fehler:
         return jsonify({"status": "error", "message": fehler}), 400
     
+    _, old_survey = finde_umfrage_nach_id(survey_id)
+    if old_survey:
+        # Semantische Versionierung / Copy-on-Write: Bei jeder Änderung hochzählen
+        old_ver = int(old_survey.get("version", 1))
+        new_ver = old_ver + 1
+        
+        # Neue eindeutige ID generieren (nur _vX Teil ändern)
+        if re.search(r"_v\d+$", survey_id):
+            base_id = re.sub(r"_v\d+$", "", survey_id)
+        else:
+            base_id = survey_id
+            
+        new_id = f"{base_id}_v{new_ver}"
+        zaehler = new_ver
+        while finde_umfrage_nach_id(new_id)[0] is not None or finde_umfrage_nach_id(new_id)[1] is not None:
+            zaehler += 1
+            new_id = f"{base_id}_v{zaehler}"
+            new_ver = zaehler
+            
+        payload["survey_id"] = new_id
+        payload["version"] = new_ver
+        payload["status"] = "aktiv"
+        payload["parent_id"] = survey_id
+        speichere_umfrage(payload)
+        
+        # Alte Version archivieren
+        old_survey["status"] = "archiviert"
+        old_survey["archived_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+        speichere_umfrage(old_survey)
+        
+        # Links automatisch auf neue Version umschreiben
+        links = lade_links()
+        links_geaendert = False
+        for token, sid_liste in links.items():
+            if survey_id in sid_liste:
+                links[token] = [new_id if sid == survey_id else sid for sid in sid_liste]
+                links_geaendert = True
+        if links_geaendert:
+            speichere_links(links)
+            
+        return jsonify({"status": "updated", "survey_id": new_id, "old_survey_id": survey_id, "version": new_ver, "copy_on_write": True}), 200
+
+    # Falls Umfrage nicht existiert (Neuanlage über PUT):
+    if not payload.get("version"):
+        payload["version"] = 1
+    if not payload.get("status"):
+        payload["status"] = "aktiv"
     speichere_umfrage(payload)
-    return jsonify({"status": "updated", "survey_id": survey_id}), 200
+    return jsonify({"status": "updated", "survey_id": survey_id, "copy_on_write": False}), 200
 
 @app.route("/api/surveys/<survey_id>", methods=["DELETE"])
 @token_required
 def delete_survey(survey_id):
-    """Löscht eine spezifische Umfrage."""
+    """Löscht eine spezifische Umfrage und ihre zugehörigen Ergebnisse."""
     _, umfrage_pfad = finde_umfrage_pfad_nach_id(survey_id)
     if not umfrage_pfad:
         return jsonify({"status": "error", "message": "Umfrage nicht gefunden."}), 404
     umfrage_pfad.unlink()
+    
+    # Auch zugeordnete Ergebnis-Datei löschen
+    csv_pfad = DATA_DIR / f"results_{survey_id}.csv"
+    if csv_pfad.exists():
+        try:
+            csv_pfad.unlink()
+        except Exception as e:
+            print(f"Fehler beim Löschen der Ergebnisdatei {csv_pfad}: {e}")
+            
     return "", 204
 
 @app.route("/api/results", methods=["POST"])

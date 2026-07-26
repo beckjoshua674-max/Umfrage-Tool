@@ -237,7 +237,7 @@ def pruefe_pflichtfeld(frage, antwort):
     if antwort_ist_leer(antwort):
         typ = frage.get('type', 'text')
         if typ == 'rating':
-            return "Bitte geben Sie eine Bewertung (1–5 Sterne) ab."
+            return "Bitte geben Sie eine Bewertung (1–5) ab."
         elif typ in ('single_choice', 'multiple_choice'):
             return "Bitte wählen Sie mindestens eine Option aus."
         elif typ == 'yes_no':
@@ -276,6 +276,8 @@ def berechne_statistiken(umfragen, ergebnisse):
     statistiken = {}
     for umfrage in umfragen:
         sid = umfrage.get('survey_id', '')
+        is_agg = umfrage.get('is_aggregated', False)
+        member_ids = set(umfrage.get('member_ids', []))
         statistiken[sid] = {}
         for frage in umfrage.get('questions', []):
             fid   = frage['id']
@@ -288,7 +290,7 @@ def berechne_statistiken(umfragen, ergebnisse):
             if typ in ('text', 'date'):
                 antworten = []
                 for ergebnis in ergebnisse:
-                    if ergebnis.get('survey_id') != sid:
+                    if not (ergebnis.get('survey_id') == sid or (is_agg and ergebnis.get('survey_id') in member_ids)):
                         continue
                     answers = ergebnis.get('answers', {})
                     rohwert = answers.get(fid)
@@ -323,7 +325,7 @@ def berechne_statistiken(umfragen, ergebnisse):
 
             gesamt = 0
             for ergebnis in ergebnisse:
-                if ergebnis.get('survey_id') != sid:
+                if not (ergebnis.get('survey_id') == sid or (is_agg and ergebnis.get('survey_id') in member_ids)):
                     continue
                 answers = ergebnis.get('answers', {})
                 rohwert = answers.get(fid)
@@ -401,25 +403,39 @@ def berechne_statistiken(umfragen, ergebnisse):
 
 @app.route('/link/<link_id>', methods=['GET'])
 def use_link(link_id):
-    """Speichert das Token in der Session und leitet zur Startseite weiter."""
-    session['link_id'] = link_id
+    """Speichert das Token in der Session und leitet zur Startseite weiter, falls gueltig."""
+    try:
+        res = requests.get(f"{BACKEND_API_URL}/links", timeout=2)
+        if res.ok:
+            links = res.json()
+            if link_id in links:
+                session['link_id'] = link_id
+                return redirect(url_for('index'))
+    except Exception as e:
+        print(f"Fehler beim Abrufen der Links: {e}")
+        
+    flash("Der aufgerufene Umfrage-Link ist ungültig oder abgelaufen.", "error")
+    session.pop('link_id', None)
     return redirect(url_for('index'))
 
 @app.route('/', methods=['GET'])
 def index():
-    """Startseite: Rollenauswahl und Liste der verfügbaren Umfragen."""
-    umfragen = lade_alle_umfragen()
+    """Startseite: Rollenauswahl und Liste der verfügbaren Umfragen.
+    Zeigt NUR Umfragen an, die über einen aktuell im Adminbereich generierten Link freigegeben sind."""
     link_id = session.get('link_id')
+    umfragen = []
     
     if link_id:
         try:
-            import requests
             res = requests.get(f"{BACKEND_API_URL}/links", timeout=2)
             if res.ok:
                 links = res.json()
                 erlaubte_surveys = links.get(link_id)
                 if erlaubte_surveys is not None:
-                    umfragen = [u for u in umfragen if u.get('survey_id') in erlaubte_surveys]
+                    alle_umfragen = lade_alle_umfragen()
+                    umfragen = [u for u in alle_umfragen if u.get('survey_id') in erlaubte_surveys and u.get('status') != 'archiviert']
+                else:
+                    session.pop('link_id', None)
         except Exception as e:
             print(f"Fehler beim Abrufen der Links: {e}")
             
@@ -438,6 +454,39 @@ def survey():
     role = 'student'
     survey_id = request.args.get('survey_id', '')
     angefragter_step = request.args.get('step', 0, type=int)
+
+    # Strikte Pruefung: Alle Links muessen ueber den Adminbereich verwaltet werden
+    link_id = session.get('link_id')
+    if not link_id:
+        flash("Zugriff verweigert. Bitte nutzen Sie einen gültigen Umfrage-Link.", "error")
+        return redirect(url_for('index'))
+
+    try:
+        res = requests.get(f"{BACKEND_API_URL}/links", timeout=2)
+        if res.ok:
+            links = res.json()
+            erlaubte_surveys = links.get(link_id)
+            if erlaubte_surveys is None:
+                session.pop('link_id', None)
+                flash("Zugriff verweigert. Der genutzte Umfrage-Link ist ungültig oder abgelaufen.", "error")
+                return redirect(url_for('index'))
+            
+            if not survey_id:
+                if erlaubte_surveys:
+                    survey_id = erlaubte_surveys[0]
+                else:
+                    flash("Zugriff verweigert. Diesem Umfrage-Link sind keine Umfragen zugeordnet.", "error")
+                    return redirect(url_for('index'))
+            elif survey_id not in erlaubte_surveys:
+                flash("Zugriff verweigert. Dieser Link berechtigt nicht zur Teilnahme an dieser Umfrage.", "error")
+                return redirect(url_for('index'))
+        else:
+            flash("Verbindungsfehler zum Backend.", "error")
+            return redirect(url_for('index'))
+    except Exception as e:
+        print(f"Fehler beim Validieren des Links in survey: {e}")
+        flash("Verbindungsfehler zum Backend.", "error")
+        return redirect(url_for('index'))
 
     # -------------------------------------------------------
     # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
@@ -475,6 +524,10 @@ def survey():
                     survey_data = survey_data[0]
                 else:
                     survey_data = None
+
+            if survey_data and survey_data.get('status') == 'archiviert':
+                flash("Diese Umfrageversion ist archiviert und kann nicht mehr neu gestartet werden.", "error")
+                return redirect(url_for('index'))
 
             # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
             session['survey_data']       = survey_data
@@ -759,9 +812,10 @@ import pathlib
 BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
 
 def lade_alle_umfragen():
-    import requests
+    import requests, time
     try:
-        res = requests.get(f"{BACKEND_API_URL}/surveys", headers=get_auth_headers(), timeout=2)
+        t = int(time.time())
+        res = requests.get(f"{BACKEND_API_URL}/surveys?t={t}", headers=get_auth_headers(), timeout=10)
         if res.ok:
             return res.json()
     except Exception as e:
@@ -769,20 +823,18 @@ def lade_alle_umfragen():
     return []
 
 def lade_ergebnisse():
-    import csv, io, requests, time
+    import csv, io, requests, time, re as re_mod
     ergebnisse_dict = {}
     try:
         t = int(time.time())
-        res = requests.get(f"{BACKEND_API_URL}/results?t={t}", headers=get_auth_headers(), timeout=2)
+        res = requests.get(f"{BACKEND_API_URL}/results?t={t}", headers=get_auth_headers(), timeout=10)
         if res.status_code == 401:
             raise PermissionError("Sitzung abgelaufen")
         if res.ok:
             csv_data = res.text
-            if csv_data.startswith('﻿'):
+            if csv_data.startswith('\ufeff'):
                 csv_data = csv_data[1:]
-
-            f = io.StringIO(csv_data)
-            reader = csv.reader(f, delimiter=';')
+            reader = csv.reader(io.StringIO(csv_data), delimiter=';', quotechar='"')
             try:
                 next(reader)  # Header
             except StopIteration:
@@ -792,6 +844,8 @@ def lade_ergebnisse():
                 if len(row) < 5:
                     continue
                 result_id, timestamp, survey_id, question_id, answer = row
+                if not re_mod.search(r"_v\d+$", str(survey_id)):
+                    survey_id = f"{survey_id}_v1"
                 if result_id not in ergebnisse_dict:
                     ergebnisse_dict[result_id] = {
                         "result_id": result_id,
@@ -821,8 +875,33 @@ def admin():
         return redirect(url_for('login_page'))
 
     alle_umfragen = lade_alle_umfragen()
+    
+    # Familie / Lineage Erkennung für aggregierte Auswertung (Kap. 9 / 12)
+    import re as re_mod
+    familien = {}
+    for u in alle_umfragen:
+        sid = u.get('survey_id', '')
+        base_id = re_mod.sub(r"_v\d+$", "", sid)
+        familien.setdefault(base_id, []).append(u)
+        
+    for base_id, fam_umfragen in familien.items():
+        if len(fam_umfragen) > 1:
+            latest = max(fam_umfragen, key=lambda x: int(x.get('version', 1)) if str(x.get('version', 1)).isdigit() else 1)
+            agg_id = f"AGG_{base_id}"
+            clean_title = re_mod.sub(r" \(v\d+.*$", "", latest.get('title', base_id))
+            agg_title = f"{clean_title} (Aggregiert - Alle Versionen)"
+            agg_umfrage = {
+                "survey_id": agg_id,
+                "title": agg_title,
+                "questions": latest.get("questions", []),
+                "is_aggregated": True,
+                "member_ids": [u.get("survey_id") for u in fam_umfragen],
+                "status": "aggregiert"
+            }
+            alle_umfragen.append(agg_umfrage)
+
     aktive_ids = {u.get('survey_id') for u in alle_umfragen if u.get('survey_id')}
-    alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids]
+    alle_ergebnisse = [r for r in alle_ergebnisse if r.get('survey_id') in aktive_ids or any(r.get('survey_id') in u.get('member_ids', []) for u in alle_umfragen if u.get('is_aggregated'))]
     
     # Antwortstatistiken für Balkengrafik serverseitig berechnen (kein JS, vgl. Kap. 12.4)
     alle_statistiken = berechne_statistiken(alle_umfragen, alle_ergebnisse)
@@ -836,6 +915,11 @@ def admin():
             teilnahme_nach_umfrage[sid] += 1
         else:
             teilnahme_nach_umfrage[sid] = 1
+            
+    for u in alle_umfragen:
+        if u.get('is_aggregated'):
+            agg_id = u.get('survey_id')
+            teilnahme_nach_umfrage[agg_id] = sum(teilnahme_nach_umfrage.get(mid, 0) for mid in u.get('member_ids', []))
 
     # Fragen-Map fuer Klarnamen-Anzeige in Einzelergebnissen aufbauen
     fragen_map = {}

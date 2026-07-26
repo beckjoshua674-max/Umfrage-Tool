@@ -23,6 +23,7 @@ Das System basiert auf einer verteilten Client-Server-Architektur. Der Server (B
 * **Öffentliche Endpunkte (keine Authentifizierung erforderlich):** `GET /api/health`, `POST /api/login`, `GET /api/surveys`, `POST /api/results`.
 * **Geschützte Endpunkte (JWT-Token im Header `Authorization: Bearer <token>` erforderlich):** `POST /api/surveys`, `GET /api/results`, `DELETE /api/surveys/{survey_id}`.
 * Bei fehlendem oder ungültigem Token antwortet der Server mit `401 Unauthorized`. Besitzt das Token nicht die Rolle `admin`, antwortet der Server mit `403 Forbidden`.
+* **Standard-Sitzungsdauer:** Das administrative JWT-Token besitzt eine standardmäßige Gültigkeitsdauer von genau **30 Minuten** ab Ausstellungszeitpunkt. Nach Ablauf dieser Frist wird das Token ungültig, geschützte API-Anfragen schlagen fehl (HTTP `401 Unauthorized`) und der Client erzwingt eine Neuanmeldung des Administrators.
 * **Prävention von Browser-Caching (Cache-Busting):** Um die Anzeige veralteter Datensätze im Dashboard zu verhindern, sendet das Backend bei `GET /api/results` den HTTP-Response-Header `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`. Das Frontend hängt zusätzlich bei jedem API-Aufruf an diesen Endpunkt einen dynamischen Zeitstempel-Parameter (`?t=Zeitstempel`) als Cache-Buster an.
 
 ---
@@ -126,7 +127,7 @@ Der Client durchläuft folgende Phasen:
 * Alle redundanten Navigationselemente wie "Abmelden", "Zurück zur Startseite" oder "Lockout" sind vollständig entfernt.
 * Beim Klick auf "Logout" wird das JWT-Token deterministisch gelöscht und der Benutzer direkt auf die separate Login-Seite geleitet.
 * **Automatischer Logout bei URL-Wechsel:** Navigiert ein angemeldeter Administrator manuell aus dem Admin-Bereich heraus (z. B. durch Eingabe einer anderen URL wie der Startseite oder der Umfrage-Teilnahmeseite), wird die Session serverseitig beim Abfangen der Anfrage sofort und automatisch gelöscht. Das JWT-Token wird ohne manuelle Interaktion verworfen, um den Administrator-Zustand vollständig zu bereinigen.
-* **Strikte Trennung von Teilnehmer- und Administratorbereich:** Es gibt keine sichtbaren Links oder Navigations-Schaltflächen (wie z. B. einen Button „Verwaltung“), die die öffentliche Teilnehmer-Startseite mit dem Administratorbereich verbinden. Der Administratorbereich wird ausschließlich über separate Links (z. B. direktes Aufrufen von `/login` oder `/admin`) aufgerufen. Die Startseite (`/`) dient ausschließlich der Auflistung der Umfragen für Studierende/Teilnehmer.
+* **Strikte Trennung und Link-Autorisierung:** Es gibt keine sichtbaren Links oder Navigations-Schaltflächen (wie z. B. einen Button „Verwaltung“), die die öffentliche Teilnehmer-Startseite mit dem Administratorbereich verbinden. Der Administratorbereich wird ausschließlich über separate Links (z. B. direktes Aufrufen von `/login` oder `/admin`) aufgerufen. Alle Umfrage-Links werden ausschließlich im Admin-Bereich unter "Linkerstellung" generiert, angezeigt und verwaltet. Der Zugriff auf die öffentliche Startseite (`/`) und jegliche Umfrage-Teilnahmeseiten (`/survey`) ist ohne ein aktives, im Admin-Bereich generiertes und gültiges Link-Token in der Session strengstens untersagt und wird mit einer Fehlermeldung blockiert.
 
 ### 3.5 Fortschrittsanzeige während einer Umfrage
 * **Berechnung und Anzeige:** Während des Ausfüllens einer Umfrage wird dem Teilnehmer eine visuelle Fortschrittsanzeige (Prozentzahl und ein Fortschrittsbalken) präsentiert.
@@ -167,9 +168,9 @@ Die Darstellung im Tab "Ergebnisse anzeigen" erfolgt in folgender hierarchischer
 ### 5.2 Bereich Umfragen bearbeiten
 Das Bearbeiten und Aktualisieren bestehender Umfragen wird wie folgt geregelt:
 1. Der Client lädt die bestehende Struktur via `GET /api/surveys?role=admin` (oder mit entsprechender Rolle).
-2. Nach Modifikation im Formular-Editor sendet der Client die aktualisierte Struktur via `POST /api/surveys` an das Backend.
-3. Das Backend nimmt den Request unter JWT-Absicherung entgegen, validiert die Definition und überschreibt die bestehende JSON-Datei im Dateisystem.
-4. **Prävention von Umfrage-Duplikaten:** Durch das Bearbeiten, Speichern oder Umbenennen einer Umfrage darf im System keine zusätzliche Umfragedefinition (Duplikat) entstehen. Falls die Umfrage unter einem neuen Dateinamen gespeichert wird (z. B. basierend auf der bereinigten Survey-ID), muss die alte JSON-Modelldatei dieser Umfrage-ID deterministisch aus dem Dateisystem gelöscht werden, sodass zu jeder Zeit genau eine JSON-Datei pro Umfrage-ID existiert.
+3. Das Backend nimmt den Request unter JWT-Absicherung entgegen und validiert die Definition.
+4. **Copy-on-Write bei aktiven Umfragen (Industriestandard):** Sobald eine Umfrage bereits Ergebnisse in der CSV-Datei gesammelt hat, in einem aktiven Link verwendet wird oder eine Version > 1 aufweist, erzwingt das System einen Copy-on-Write-Mechanismus: Anstatt die bestehende Datei zu überschreiben, erzeugt das System automatisch eine neue Version mit einer neuen eindeutigen Kennung (z. B. `_v2`) und setzt im Metadaten-Header eine Versionsnummer (z. B. `"version": 2`). Die alte Version (`_v1`) wird automatisch auf den Status "archiviert" gesetzt. Aktive Teilnehmer können ihre laufende Sitzung in `_v1` noch sauber beenden, aber neue Teilnehmer werden ab diesem Zeitpunkt ausschließlich auf `_v2` geleitet (bestehende Link-Mappings in `links.json` werden automatisch auf die neue ID umgeschrieben).
+5. **In-Place Aktualisierung bei Entwürfen:** Handelt es sich um einen neuen Entwurf ohne bisherige Teilnahmen und ohne Verlinkung, wird die bestehende JSON-Datei im Dateisystem in-place aktualisiert. Falls die Umfrage unter einem neuen Dateinamen gespeichert wird, wird die alte Modelldatei gelöscht, sodass keine unkontrollierten Duplikate entstehen.
 
 ### 5.3 Verhalten der CSV-Export-Schaltflächen bei aktiver Filterung
 Wenn der Administrator einen Filter für eine bestimmte Umfrage-ID ausgewählt hat (Sektion 1 via Dropdown-Menü oder Sektion 2 via Klick-Filter-Buttons) und auf eine der beiden "CSV exportieren"-Schaltflächen klickt, wird die Ausführung des Downloads unterbrochen und eine Benutzerabfrage als rein textbasiertes Browser-Modal geschaltet:
@@ -252,3 +253,12 @@ Am oberen Rand des Auswertungs-Tabs (Tab 4) wird ein übersichtliches Panel mit 
 Zur Steigerung der visuellen Klarheit wird eine strikte Trennung vorgenommen:
 * **Mehrfachauswahl (multiple_choice)** verwendet ein eckiges Kontrollkästchen (abgerundetes Quadrat), das bei Auswahl mit der Primärfarbe gefüllt wird und ein weißes Kreuzzeichen "X" zeigt.
 * **Einzelauswahl (single_choice, yes_no)** verwendet einen runden Auswahlknopf (Radio-Circle), der bei Auswahl einen farbigen Punkt in der Mitte anzeigt.
+
+### 8.7 Darstellung von Name und ID der Umfrage
+* **Administrator-Bereich:** An allen Stellen im Administratorbereich (Listen, Auswahl-Dropdowns, Filterknöpfe, Tabellenzeilen, Editor-Überschriften und Metadaten-Karten) müssen sowohl der Name (Titel) als auch die technische ID der Umfrage klar ersichtlich und eindeutig als solche deklariert sein.
+* **Teilnehmer-Bereich:** In der für Teilnehmer sichtbaren Befragungsansicht (Startseite, Fragen-Templates, danke/Erfolgsseite) wird ausschließlich der Name (Titel) der Umfrage angezeigt. Die technische ID der Umfrage ist auf der Teilnehmer-Oberfläche vollständig auszublenden.
+
+### 8.8 Semantische Versionierung & Copy-on-Write (Klon-Mechanismus)
+* **Versionskontrolle bei Laufzeitänderungen:** Muss eine bereits aktive Umfrage zwingend inhaltlich oder strukturell angepasst werden, erzwingt das System einen Copy-on-Write-Mechanismus. Anstatt die bestehende Definition zu überschreiben, erzeugt das System automatisch eine neue Version mit einer neuen eindeutigen Kennung (z. B. `ask_alma_student_v2`) und setzt im Metadaten-Header eine Versionsnummer (`"version": 2`).
+* **Archivierung & Redirects:** Die alte Version (`v1`) wird automatisch auf den Status "Archiviert / Geschlossen" gesetzt. Aktive Teilnehmer können ihre laufende Sitzung in `v1` noch sauber beenden, aber neue Teilnehmer werden ab diesem Zeitpunkt ausschließlich auf `v2` geleitet.
+* **Getrennte Rohdaten & Aggregierte Auswertung:** Die Rohdaten beider Versionen bleiben getrennt (`results_v1.csv` und `results_v2.csv`) und können im Tab "Auswertung" entweder gezielt pro Version oder parallel aggregiert als Gesamtauswertung (`[Gesamtauswertung]`) betrachtet werden.
