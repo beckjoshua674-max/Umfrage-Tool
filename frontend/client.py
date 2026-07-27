@@ -489,60 +489,63 @@ def survey():
         return redirect(url_for('index'))
 
     # -------------------------------------------------------
-    # Umfragedaten laden: Immer frisch vom Server (Single Source of Truth)
-    # Nur Antworten werden in der Session zwischengespeichert, nie die Umfrage-Struktur.
+    # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
+    # Nur beim Start einer neuen Umfrage (step=0) prüfen
     # -------------------------------------------------------
-    # Bei Schritt 0: Antworten-Cache in der Session löschen (neuer Durchlauf)
-    if angefragter_step == 0 or session.get('survey_version_id') != survey_id:
+    if angefragter_step == 0:
+        # Beim Neustart die bisherige Session der Umfrage löschen
+        session.pop('survey_data', None)
         session.pop('survey_answers', None)
         session.pop('survey_role', None)
         session.pop('survey_max_step', None)
         session.pop('survey_version_id', None)
-        session.pop('survey_data', None)
 
-    try:
-        if survey_id:
-            url = f"{BACKEND_API_URL}/surveys/{survey_id}"
-        else:
-            url = f"{BACKEND_API_URL}/surveys"
-        response = requests.get(
-            url,
-            headers=get_auth_headers()
-        )
-        if response.status_code == 401:
-            session.clear()
-            return redirect(url_for('index'))
-        if response.status_code == 404:
-            flash("Diese Umfrage wurde nicht gefunden oder wurde gelöscht.", "error")
-            return redirect(url_for('index'))
-        response.raise_for_status()
-        survey_data = response.json()
-        if isinstance(survey_data, list):
-            if survey_data:
-                survey_data = survey_data[0]
+    # -------------------------------------------------------
+    # Umfragedaten laden und in Session cachen
+    # -------------------------------------------------------
+    if 'survey_data' not in session or (survey_id and session.get('survey_version_id') != survey_id):
+        try:
+            if survey_id:
+                url = f"{BACKEND_API_URL}/surveys/{survey_id}"
             else:
-                survey_data = None
+                url = f"{BACKEND_API_URL}/surveys"
+            response = requests.get(
+                url,
+                headers=get_auth_headers()
+            )
+            if response.status_code == 401:
+                session.clear()
+                return redirect(url_for('index'))
+            if response.status_code == 404:
+                flash("Diese Umfrage wurde nicht gefunden oder wurde gelöscht.", "error")
+                return redirect(url_for('index'))
+            response.raise_for_status()
+            survey_data = response.json()
+            if isinstance(survey_data, list):
+                if survey_data:
+                    survey_data = survey_data[0]
+                else:
+                    survey_data = None
 
-        if not survey_data:
-            flash("Keine Umfrage verfügbar.", "error")
-            return redirect(url_for('index'))
+            if survey_data and survey_data.get('status') == 'archiviert':
+                flash("Diese Umfrageversion ist archiviert und kann nicht mehr neu gestartet werden.", "error")
+                return redirect(url_for('index'))
 
-        if survey_data.get('status') == 'archiviert':
-            flash("Diese Umfrageversion ist archiviert und kann nicht mehr neu gestartet werden.", "error")
-            session.pop('survey_data', None)
-            return redirect(url_for('index'))
+            # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
+            session['survey_data']       = survey_data
+            session['survey_role']       = 'student'
+            session['survey_version_id'] = survey_data.get('survey_id', '')
+            session['survey_answers']    = {}
+            session['survey_max_step']   = 0  # Maximal erreichter Schritt
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Umfrage: {e}")
+            return render_template('index.html', survey=None, role='student',
+                                   question=None, step=0, total=0, fehler=None)
 
-        # Versionskennung in Session speichern (nur für Antworten-Schutz)
-        if session.get('survey_version_id') != survey_data.get('survey_id', ''):
-            session['survey_answers'] = {}
-            session['survey_max_step'] = 0
-        session['survey_version_id'] = survey_data.get('survey_id', '')
-        session['survey_role'] = 'student'
-
-    except Exception as e:
-        print(f"Fehler beim Abrufen der Umfrage: {e}")
-        flash("Verbindungsfehler zum Backend.", "error")
-        return redirect(url_for('index'))
+    survey_data = session.get('survey_data')
+    if not survey_data:
+        return render_template('index.html', survey=None, role='student',
+                               question=None, step=0, total=0, fehler=None)
 
     # -------------------------------------------------------
     # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
