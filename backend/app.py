@@ -375,8 +375,14 @@ def login():
 
 @app.route("/api/surveys", methods=["GET"])
 def get_surveys():
-    """Gibt eine Liste aller Umfragen zurück (REST Standard)."""
-    resp = jsonify(lade_alle_umfragen())
+    """Gibt eine Liste aller Umfragen zurück.
+    Standardmässig werden archivierte Umfragen herausgefiltert (Server als Single Source of Truth).
+    Mit ?include_archived=true werden alle Versionen zurückgegeben (für Admin-Auswertung)."""
+    include_archived = request.args.get("include_archived", "false").lower() == "true"
+    alle = lade_alle_umfragen()
+    if not include_archived:
+        alle = [u for u in alle if u.get("status") != "archiviert"]
+    resp = jsonify(alle)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp, 200
 
@@ -452,10 +458,17 @@ def update_survey(survey_id):
         payload["parent_id"] = survey_id
         speichere_umfrage(payload)
         
-        # Alte Version archivieren
-        old_survey["status"] = "archiviert"
-        old_survey["archived_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
-        speichere_umfrage(old_survey)
+        # Alle älteren Versionen derselben Familie archivieren (nicht nur die direkt vorherige)
+        alle = lade_alle_umfragen()
+        for u in alle:
+            uid = u.get("survey_id", "")
+            if uid == new_id:
+                continue  # Nicht die gerade erstellte Version archivieren
+            u_base = re.sub(r"_v\d+$", "", uid)
+            if u_base == base_id and u.get("status") != "archiviert":
+                u["status"] = "archiviert"
+                u["archived_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+                speichere_umfrage(u)
         
         # Links automatisch auf neue Version umschreiben
         links = lade_links()
@@ -480,7 +493,8 @@ def update_survey(survey_id):
 @app.route("/api/surveys/<survey_id>", methods=["DELETE"])
 @token_required
 def delete_survey(survey_id):
-    """Löscht eine spezifische Umfrage und ihre zugehörigen Ergebnisse."""
+    """Löscht eine spezifische Umfrage, ihre zugehörigen Ergebnisse
+    und bereinigt alle Links, die auf sie verweisen (Single Source of Truth)."""
     _, umfrage_pfad = finde_umfrage_pfad_nach_id(survey_id)
     if not umfrage_pfad:
         return jsonify({"status": "error", "message": "Umfrage nicht gefunden."}), 404
@@ -493,6 +507,26 @@ def delete_survey(survey_id):
             csv_pfad.unlink()
         except Exception as e:
             print(f"Fehler beim Löschen der Ergebnisdatei {csv_pfad}: {e}")
+
+    # Links bereinigen: gelöschte survey_id aus allen Links entfernen
+    # Links die danach leer sind werden ebenfalls gelöscht
+    try:
+        links = lade_links()
+        links_geaendert = False
+        leere_tokens = []
+        for token, sid_liste in links.items():
+            if survey_id in sid_liste:
+                neue_liste = [sid for sid in sid_liste if sid != survey_id]
+                links[token] = neue_liste
+                links_geaendert = True
+                if not neue_liste:
+                    leere_tokens.append(token)
+        for token in leere_tokens:
+            del links[token]
+        if links_geaendert:
+            speichere_links(links)
+    except Exception as e:
+        print(f"Warnung: Fehler beim Bereinigen der Links nach Löschen von {survey_id}: {e}")
             
     return "", 204
 

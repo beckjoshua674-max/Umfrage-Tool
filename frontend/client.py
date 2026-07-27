@@ -489,61 +489,60 @@ def survey():
         return redirect(url_for('index'))
 
     # -------------------------------------------------------
-    # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
-    # Nur beim Start einer neuen Umfrage (step=0) prüfen
+    # Umfragedaten laden: Immer frisch vom Server (Single Source of Truth)
+    # Nur Antworten werden in der Session zwischengespeichert, nie die Umfrage-Struktur.
     # -------------------------------------------------------
-    if angefragter_step == 0:
-        # Beim Neustart die bisherige Session der Umfrage löschen
-        session.pop('survey_data', None)
+    # Bei Schritt 0: Antworten-Cache in der Session löschen (neuer Durchlauf)
+    if angefragter_step == 0 or session.get('survey_version_id') != survey_id:
         session.pop('survey_answers', None)
         session.pop('survey_role', None)
         session.pop('survey_max_step', None)
         session.pop('survey_version_id', None)
+        session.pop('survey_data', None)
 
-    # -------------------------------------------------------
-    # Umfragedaten laden und in Session cachen
-    # -------------------------------------------------------
-    if 'survey_data' not in session or (survey_id and session.get('survey_version_id') != survey_id):
-        try:
-            if survey_id:
-                url = f"{BACKEND_API_URL}/surveys/{survey_id}"
+    try:
+        if survey_id:
+            url = f"{BACKEND_API_URL}/surveys/{survey_id}"
+        else:
+            url = f"{BACKEND_API_URL}/surveys"
+        response = requests.get(
+            url,
+            headers=get_auth_headers()
+        )
+        if response.status_code == 401:
+            session.clear()
+            return redirect(url_for('index'))
+        if response.status_code == 404:
+            flash("Diese Umfrage wurde nicht gefunden oder wurde gelöscht.", "error")
+            return redirect(url_for('index'))
+        response.raise_for_status()
+        survey_data = response.json()
+        if isinstance(survey_data, list):
+            if survey_data:
+                survey_data = survey_data[0]
             else:
-                # Get the first survey from the list if no id is provided
-                url = f"{BACKEND_API_URL}/surveys"
-            response = requests.get(
-                url,
-                headers=get_auth_headers()
-            )
-            if response.status_code == 401:
-                session.clear()
-                return redirect(url_for('index'))
-            response.raise_for_status()
-            survey_data = response.json()
-            if isinstance(survey_data, list):
-                if survey_data:
-                    survey_data = survey_data[0]
-                else:
-                    survey_data = None
+                survey_data = None
 
-            if survey_data and survey_data.get('status') == 'archiviert':
-                flash("Diese Umfrageversion ist archiviert und kann nicht mehr neu gestartet werden.", "error")
-                return redirect(url_for('index'))
+        if not survey_data:
+            flash("Keine Umfrage verfügbar.", "error")
+            return redirect(url_for('index'))
 
-            # Versionskontrolle: survey_id als Versionskennung speichern (Kap. 10)
-            session['survey_data']       = survey_data
-            session['survey_role']       = 'student'
-            session['survey_version_id'] = survey_data.get('survey_id', '')
-            session['survey_answers']    = {}
-            session['survey_max_step']   = 0  # Maximal erreichter Schritt
-        except Exception as e:
-            print(f"Fehler beim Abrufen der Umfrage: {e}")
-            return render_template('index.html', survey=None, role='student',
-                                   question=None, step=0, total=0, fehler=None)
+        if survey_data.get('status') == 'archiviert':
+            flash("Diese Umfrageversion ist archiviert und kann nicht mehr neu gestartet werden.", "error")
+            session.pop('survey_data', None)
+            return redirect(url_for('index'))
 
-    survey_data = session.get('survey_data')
-    if not survey_data:
-        return render_template('index.html', survey=None, role='student',
-                               question=None, step=0, total=0, fehler=None)
+        # Versionskennung in Session speichern (nur für Antworten-Schutz)
+        if session.get('survey_version_id') != survey_data.get('survey_id', ''):
+            session['survey_answers'] = {}
+            session['survey_max_step'] = 0
+        session['survey_version_id'] = survey_data.get('survey_id', '')
+        session['survey_role'] = 'student'
+
+    except Exception as e:
+        print(f"Fehler beim Abrufen der Umfrage: {e}")
+        flash("Verbindungsfehler zum Backend.", "error")
+        return redirect(url_for('index'))
 
     # -------------------------------------------------------
     # Missbrauchsschutz: Teilnahme-Cookie prüfen (Kap. 10)
@@ -555,15 +554,6 @@ def survey():
 
     questions = survey_data.get('questions', [])
     total     = len(questions)
-
-    # -------------------------------------------------------
-    # Versionskontrolle: Prüfen ob die Umfrage zwischenzeitlich
-    # verändert wurde (unterschiedliche survey_id â†’ Neustart erzwingen)
-    # -------------------------------------------------------
-    if session.get('survey_version_id') != survey_data.get('survey_id', ''):
-        flash("Die Umfrage wurde aktualisiert. Bitte starten Sie neu.")
-        session.pop('survey_data', None)
-        return redirect(url_for('survey', role=role, step=0))
 
     # -------------------------------------------------------
     # Route Guarding: Nur erlaubte Schritte zulassen (Kap. 11)
@@ -811,11 +801,14 @@ def survey_submit():
 import pathlib
 BACKEND_DATEN_PFAD = pathlib.Path(__file__).parent.parent / "backend" / "data"
 
-def lade_alle_umfragen():
+def lade_alle_umfragen(include_archived=False):
     import requests, time
     try:
         t = int(time.time())
-        res = requests.get(f"{BACKEND_API_URL}/surveys?t={t}", headers=get_auth_headers(), timeout=10)
+        # include_archived=True: Alle Versionen laden (für Admin-Auswertung)
+        # include_archived=False (Standard): Nur aktive Umfragen laden (Single Source of Truth)
+        param = "true" if include_archived else "false"
+        res = requests.get(f"{BACKEND_API_URL}/surveys?t={t}&include_archived={param}", headers=get_auth_headers(), timeout=10)
         if res.ok:
             return res.json()
     except Exception as e:
@@ -874,7 +867,7 @@ def admin():
         flash("Ihre Sitzung ist abgelaufen. Bitte loggen Sie sich neu ein.")
         return redirect(url_for('login_page'))
 
-    alle_umfragen = lade_alle_umfragen()
+    alle_umfragen = lade_alle_umfragen(include_archived=True)
     
     # Familie / Lineage Erkennung für aggregierte Auswertung (Kap. 9 / 12)
     import re as re_mod
@@ -1023,6 +1016,50 @@ def api_get_survey():
         return response.text, response.status_code, {"Content-Type": "application/json; charset=utf-8"}
     except Exception as e:
         return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler zum Backend: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
+
+@app.route('/api/results', methods=['GET'])
+@login_required
+def api_get_results():
+    """Proxy-Endpunkt: Leitet GET /api/results an das Backend weiter und gibt
+    die geparsten Ergebnisse als JSON-Array zurück. Wird vom Admin-Dashboard
+    für das Live-Aktualisieren ohne Seitenneuladen genutzt."""
+    import json as json_mod, time, csv, io
+    try:
+        t = int(time.time())
+        res = requests.get(
+            f"{BACKEND_API_URL}/results?t={t}",
+            headers=get_auth_headers(),
+            timeout=3
+        )
+        if res.status_code == 401:
+            session.clear()
+            return json_mod.dumps({"status": "error", "message": "Sitzung abgelaufen."}), 401, {"Content-Type": "application/json; charset=utf-8"}
+        if res.ok:
+            ergebnisse_dict = {}
+            csv_data = res.text
+            if csv_data.startswith('\ufeff'):
+                csv_data = csv_data[1:]
+            reader = csv.reader(io.StringIO(csv_data), delimiter=';')
+            try:
+                next(reader)  # Header überspringen
+            except StopIteration:
+                return json_mod.dumps([]), 200, {"Content-Type": "application/json; charset=utf-8"}
+            for row in reader:
+                if len(row) < 5:
+                    continue
+                result_id, timestamp, survey_id, question_id, answer = row
+                if result_id not in ergebnisse_dict:
+                    ergebnisse_dict[result_id] = {
+                        "result_id": result_id,
+                        "received_at": timestamp,
+                        "survey_id": survey_id,
+                        "answers": {}
+                    }
+                ergebnisse_dict[result_id]["answers"][question_id] = parse_csv_antwort(answer)
+            return json_mod.dumps(list(ergebnisse_dict.values()), ensure_ascii=False), 200, {"Content-Type": "application/json; charset=utf-8"}
+        return json_mod.dumps({"status": "error", "message": f"Backend-Fehler: {res.status_code}"}), res.status_code, {"Content-Type": "application/json; charset=utf-8"}
+    except Exception as e:
+        return json_mod.dumps({"status": "error", "message": f"Verbindungsfehler: {e}"}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
 @app.route('/admin/surveys/save', methods=['POST'])
 @login_required
