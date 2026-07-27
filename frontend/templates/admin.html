@@ -19,7 +19,7 @@
     </button>
     <button class="admin-tab-btn" data-tab="bearbeiten" onclick="zeigeTab('bearbeiten')">
         Umfragen bearbeiten
-        <span class="tab-badge">{{ umfragen|length }}</span>
+        <span class="tab-badge">{{ aktive_umfragen|length }}</span>
     </button>
     <button class="admin-tab-btn" data-tab="erstellen" onclick="zeigeTab('erstellen')">
         Umfrage erstellen
@@ -266,13 +266,13 @@
                 <h2>Vorhandene Umfragen</h2>
             </div>
             <div class="card-body" id="umfragen-auswahl-container" style="padding: 16px;">
-                {% if umfragen %}
+                {% if aktive_umfragen %}
                 <div class="form-group">
                     <label for="umfrage-auswahl-select" class="form-label" style="font-weight: 500;">Umfrage wählen:</label>
                     <select id="umfrage-auswahl-select" class="form-control" onchange="umfrageAuswahlGeaendert(this)">
-                        {% for u in umfragen %}
+                        {% for u in aktive_umfragen %}
                         {% if not u.get('is_aggregated') %}
-                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% endif %}</option>
+                        <option value="{{ u.survey_id }}" data-rolle="{{ u._rolle }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}</option>
                         {% endif %}
                         {% endfor %}
                     </select>
@@ -396,13 +396,11 @@
             <div style="margin-bottom: 20px;">
                 <label class="builder-label">Verfügbare Umfragen:</label>
                 <div style="display: flex; flex-direction: column; gap: 10px;" id="link-surveys-container">
-                    {% for u in umfragen %}
-                    {% if not u.get('is_aggregated') and u.status != 'archiviert' %}
+                    {% for u in aktive_umfragen %}
                     <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                         <input type="checkbox" name="link-survey-select" value="{{ u.survey_id }}">
                         Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}
                     </label>
-                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -1089,12 +1087,9 @@
                     zeigeBearbeitenStatus('Umfrage erfolgreich aktualisiert.', 'erfolg');
                 }
                 bearbeitenAktuelleSurveyId = neueId;
-                aktualisiereErgebnisse().then(function() {
-                    var select = document.getElementById('umfrage-auswahl-select');
-                    if (select) {
-                        select.value = neueId;
-                        umfrageAuswahlGeaendert(select);
-                    }
+                // Alle Umfragen-Bereiche neu laden (Dropdowns, Filter, Links) und neue Version auswählen
+                aktualisiereUmfragen(neueId).then(function() {
+                    aktualisiereErgebnisse();
                 });
             } else {
                 var msg = (res.daten && res.daten.message) ? res.daten.message : 'Unbekannter Fehler';
@@ -1124,12 +1119,10 @@
         .then(function(res) {
             if (res.ok) {
                 zeigeBearbeitenStatus('&#10003; Umfrage erfolgreich gelöscht!', 'erfolg');
-                var select = document.getElementById('umfrage-auswahl-select');
-                if (select) {
-                    select.value = '';
-                    umfrageAuswahlGeaendert(select);
-                }
-                aktualisiereErgebnisse();
+                // Alle Umfragen-Bereiche neu laden nach dem Löschen
+                aktualisiereUmfragen(null).then(function() {
+                    aktualisiereErgebnisse();
+                });
             } else {
                 zeigeBearbeitenStatus('Fehler: ' + (res.daten.message || 'Unbekannter Fehler'), 'fehler');
             }
@@ -1768,84 +1761,230 @@
     // -------------------------------------------------------
     // Dynamisches Laden/Aktualisieren ohne Neuladen der Seite
     // -------------------------------------------------------
+    // -------------------------------------------------------
+    // Alle Umfragen vom Server laden und alle UI-Bereiche aktualisieren
+    // -------------------------------------------------------
+    function aktualisiereUmfragen(zielSurveyId) {
+        return fetch('/api/surveys?_t=' + new Date().getTime(), {
+            cache: 'no-store',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(res) {
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function(umfragen) {
+            if (!Array.isArray(umfragen)) return;
+
+            // Aggregierte Gesamtauswertungen clientseitig nachbilden (wie der Server)
+            var familien = {};
+            umfragen.forEach(function(u) {
+                var base = u.survey_id.replace(/_v\d+$/, '');
+                if (!familien[base]) familien[base] = [];
+                familien[base].push(u);
+            });
+            var alleInklAgg = umfragen.slice();
+            Object.keys(familien).forEach(function(baseId) {
+                var fam = familien[baseId];
+                if (fam.length > 1) {
+                    var latest = fam.reduce(function(a, b) {
+                        return parseInt(a.version||1) >= parseInt(b.version||1) ? a : b;
+                    });
+                    alleInklAgg.push({
+                        survey_id: 'AGG_' + baseId,
+                        title: (latest.title||baseId).replace(/ \(v\d+.*$/, '') + ' (Aggregiert - Alle Versionen)',
+                        is_aggregated: true,
+                        status: 'aggregiert'
+                    });
+                }
+            });
+
+            // --- Bearbeiten-Dropdown (Tab 2): nur aktive Umfragen ---
+            var bearbeitenSelect = document.getElementById('umfrage-auswahl-select');
+            if (bearbeitenSelect) {
+                var alteWahl = zielSurveyId || bearbeitenSelect.value;
+                bearbeitenSelect.innerHTML = '';
+                umfragen.forEach(function(u) {
+                    if (u.is_aggregated || u.status === 'archiviert') return;
+                    var opt = document.createElement('option');
+                    opt.value = u.survey_id;
+                    opt.textContent = 'Name: ' + u.title + ' | ID: ' + u.survey_id;
+                    bearbeitenSelect.appendChild(opt);
+                });
+                if (alteWahl) bearbeitenSelect.value = alteWahl;
+                if (!bearbeitenSelect.value && bearbeitenSelect.options.length > 0) {
+                    bearbeitenSelect.selectedIndex = 0;
+                }
+                umfrageAuswahlGeaendert(bearbeitenSelect);
+            }
+
+            // --- Statistik-Filter-Dropdown (Tab 1 oben): alle Versionen ---
+            var statsSelect = document.getElementById('stats-filter-select');
+            if (statsSelect) {
+                var alteStatWahl = statsSelect.value;
+                statsSelect.innerHTML = '<option value="alle">Alle Umfragen anzeigen</option>';
+                alleInklAgg.forEach(function(u) {
+                    var opt = document.createElement('option');
+                    opt.value = u.survey_id;
+                    var label = 'Name: ' + u.title + ' | ID: ' + u.survey_id;
+                    if (u.status === 'archiviert') label += ' [Archiviert]';
+                    else if (u.is_aggregated) label += ' [Gesamtauswertung]';
+                    opt.textContent = label;
+                    statsSelect.appendChild(opt);
+                });
+                statsSelect.value = alteStatWahl;
+                if (!statsSelect.value) statsSelect.selectedIndex = 0;
+                filterStatistiken(statsSelect.value);
+            }
+
+            // --- Ergebnis-Filterleiste (Tab 1 Tabelle): alle Versionen ---
+            var filterLeiste = document.querySelector('.filter-leiste');
+            if (filterLeiste) {
+                var alteFilterBtns = filterLeiste.querySelectorAll('.filter-btn:not(:first-child)');
+                alteFilterBtns.forEach(function(b) { b.remove(); });
+                alleInklAgg.forEach(function(u) {
+                    var btn = document.createElement('button');
+                    btn.className = 'filter-btn';
+                    btn.setAttribute('onclick', 'filterErgebnisse(\'' + u.survey_id + '\', this)');
+                    var label = 'Name: ' + u.title + ' | ID: ' + u.survey_id;
+                    if (u.status === 'archiviert') label += ' [Archiviert]';
+                    else if (u.is_aggregated) label += ' [Gesamt]';
+                    btn.textContent = label;
+                    filterLeiste.appendChild(btn);
+                });
+            }
+
+            // --- Linkerstellung-Checkboxen (Tab 4): nur aktive, nicht archivierte ---
+            var linkContainer = document.getElementById('link-surveys-container');
+            if (linkContainer) {
+                linkContainer.innerHTML = '';
+                alleInklAgg.forEach(function(u) {
+                    if (u.is_aggregated || u.status === 'archiviert') return;
+                    var lbl = document.createElement('label');
+                    lbl.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;';
+                    lbl.innerHTML = '<input type="checkbox" name="link-survey-select" value="' +
+                        escapeHtml(u.survey_id) + '"> Name: ' + escapeHtml(u.title) +
+                        ' | ID: ' + escapeHtml(u.survey_id);
+                    linkContainer.appendChild(lbl);
+                });
+            }
+        })
+        .catch(function(err) {
+            window.showNotification('Fehler beim Laden der Umfragen: ' + err, 'error');
+        });
+    }
+
     function aktualisiereErgebnisse() {
         var spinner = document.getElementById('global-loading-spinner');
         if (spinner) spinner.style.display = 'flex';
 
-        var url = window.location.href.split('#')[0];
-        var sep = url.indexOf('?') !== -1 ? '&' : '?';
-        var fetchUrl = url + sep + '_t=' + new Date().getTime();
-
-        return fetch(fetchUrl, {
+        return fetch('/api/results?_t=' + new Date().getTime(), {
             cache: 'no-store',
-            headers: {
-                'Pragma': 'no-cache',
-                'Cache-Control': 'no-cache, no-store, must-revalidate'
-            }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
-            .then(function(res) {
-                return res.text();
-            })
-            .then(function(htmlText) {
-                var parser = new DOMParser();
-                var doc = parser.parseFromString(htmlText, 'text/html');
-                
-                // 1. Aktualisiere Linkerstellung Sektion (Tab 3)
-                var neueLinkerstellung = doc.getElementById('tab-linkerstellung');
-                var alteLinkerstellung = document.getElementById('tab-linkerstellung');
-                if (neueLinkerstellung && alteLinkerstellung) {
-                    alteLinkerstellung.innerHTML = neueLinkerstellung.innerHTML;
-                }
+        .then(function(res) {
+            if (res.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function(neueErgebnisse) {
+            if (!neueErgebnisse || !Array.isArray(neueErgebnisse)) return;
 
-                // 2. Aktualisiere Ergebnisse Sektion (Tab 1)
-                var neueErgebnisse = doc.getElementById('tab-ergebnisse');
-                var alteErgebnisse = document.getElementById('tab-ergebnisse');
-                if (neueErgebnisse && alteErgebnisse) {
-                    var altesFilterSelect = document.getElementById('stats-filter-select');
-                    var valFilter = altesFilterSelect ? altesFilterSelect.value : 'alle';
-                    alteErgebnisse.innerHTML = neueErgebnisse.innerHTML;
-                    var neuesFilterSelect = document.getElementById('stats-filter-select');
-                    if (neuesFilterSelect && valFilter) {
-                        neuesFilterSelect.value = valFilter;
-                        if (!neuesFilterSelect.value && neuesFilterSelect.options.length > 0) {
-                            neuesFilterSelect.selectedIndex = 0;
-                        }
-                        filterStatistiken(neuesFilterSelect.value);
-                    }
-                }
+            // Aktuelle result_ids aus der Tabelle lesen
+            var tbody = document.querySelector('#ergebnis-tabelle tbody');
+            var aktuelleIds = new Set();
+            if (tbody) {
+                tbody.querySelectorAll('tr.ergebnis-zeile').forEach(function(row) {
+                    var idSpan = row.querySelector('td span.badge');
+                    if (idSpan) aktuelleIds.add(idSpan.textContent.replace('...', '').trim());
+                });
+            }
 
-                // 3. Aktualisiere Umfrage bearbeiten Dropdown-Auswahl (Tab 2)
-                var neueAuswahlContainer = doc.getElementById('umfragen-auswahl-container');
-                var alteAuswahlContainer = document.getElementById('umfragen-auswahl-container');
-                if (neueAuswahlContainer && alteAuswahlContainer) {
-                    var selectAltf = document.getElementById('umfrage-auswahl-select');
-                    var val = selectAltf ? selectAltf.value : '';
-                    alteAuswahlContainer.innerHTML = neueAuswahlContainer.innerHTML;
-                    var selectNeu = document.getElementById('umfrage-auswahl-select');
-                    if (selectNeu) {
-                        selectNeu.value = val;
-                        // Falls der alte Wert nicht existiert oder leer war, wähle den ersten
-                        if (!selectNeu.value && selectNeu.options.length > 0) {
-                            selectNeu.selectedIndex = 0;
-                        }
-                        umfrageAuswahlGeaendert(selectNeu);
-                    }
-                }
+            // Neue result_ids aus der API-Antwort sammeln
+            var neueIds = new Set(neueErgebnisse.map(function(r) {
+                return r.result_id ? r.result_id.substring(0, 8) : '';
+            }));
 
-                // 4. Aktualisiere den Tab-Badge für "Umfragen bearbeiten"
-                var neuerTabBadge = doc.querySelector('.admin-tab-btn[data-tab="bearbeiten"] .tab-badge');
-                var alterTabBadge = document.querySelector('.admin-tab-btn[data-tab="bearbeiten"] .tab-badge');
-                if (neuerTabBadge && alterTabBadge) {
-                    alterTabBadge.innerHTML = neuerTabBadge.innerHTML;
-                }
-                
+            // Prüfen ob Unterschied besteht
+            var hatAbweichung = neueErgebnisse.length !== aktuelleIds.size ||
+                [...neueIds].some(function(id) { return !aktuelleIds.has(id); });
+
+            if (!hatAbweichung) {
                 if (spinner) spinner.style.display = 'none';
-                window.showNotification('Ansicht erfolgreich aktualisiert.', 'success');
-            })
-            .catch(function(err) {
-                if (spinner) spinner.style.display = 'none';
-                window.showNotification('Fehler beim Aktualisieren der Daten: ' + err, 'error');
-            });
+                window.showNotification('Ergebnisse sind aktuell. Keine Änderungen.', 'info');
+                return;
+            }
+
+            // Neue Zeilen in die Tabelle rendern
+            if (tbody) {
+                tbody.innerHTML = '';
+                neueErgebnisse.forEach(function(r) {
+                    var zeile = document.createElement('tr');
+                    zeile.className = 'ergebnis-zeile';
+                    zeile.setAttribute('data-survey-id', r.survey_id || '');
+
+                    // ID-Zelle
+                    var tdId = document.createElement('td');
+                    tdId.innerHTML = '<span class="badge">' + escapeHtml((r.result_id || '?').substring(0, 8)) + '...</span>';
+
+                    // Zeitpunkt-Zelle
+                    var tdZeit = document.createElement('td');
+                    tdZeit.className = 'td-small';
+                    var zeitStr = (r.received_at || r.timestamp || '-').substring(0, 16).replace('T', ' ');
+                    tdZeit.textContent = zeitStr;
+
+                    // Umfrage-Zelle
+                    var tdUmfrage = document.createElement('td');
+                    tdUmfrage.innerHTML =
+                        '<span style="font-weight:600;display:block;font-size:0.85rem;">ID: ' + escapeHtml(r.survey_id || '?') + '</span>';
+
+                    // Antworten-Zelle
+                    var tdAntworten = document.createElement('td');
+                    var answers = r.answers || {};
+                    var answerKeys = Object.keys(answers);
+                    var vorschauHtml = '<div class="antwort-vorschau"><ul class="answers-list">';
+                    answerKeys.forEach(function(key, idx) {
+                        var val = answers[key];
+                        var valStr = Array.isArray(val) ? val.join(', ') : String(val);
+                        var versteckt = idx >= 2 ? ' versteckt' : '';
+                        vorschauHtml += '<li class="antwort-item answer-preview-item' + versteckt + '">' +
+                            '<strong class="q-key answer-question">' + escapeHtml(key) + '</strong>' +
+                            '<span class="q-val answer-value">' + escapeHtml(valStr) + '</span></li>';
+                    });
+                    vorschauHtml += '</ul>';
+                    if (answerKeys.length > 2) {
+                        vorschauHtml += '<button class="btn-link">+ ' + (answerKeys.length - 2) + ' weitere anzeigen</button>';
+                    }
+                    vorschauHtml += '</div>';
+                    tdAntworten.innerHTML = vorschauHtml;
+
+                    zeile.appendChild(tdId);
+                    zeile.appendChild(tdZeit);
+                    zeile.appendChild(tdUmfrage);
+                    zeile.appendChild(tdAntworten);
+                    tbody.appendChild(zeile);
+                });
+
+                // Zähler aktualisieren
+                var subtitle = document.querySelector('#tab-ergebnisse .admin-card-subtitle');
+                if (!subtitle) subtitle = document.querySelector('.admin-card-subtitle');
+                if (subtitle) subtitle.textContent = neueErgebnisse.length + ' Antwort(en) gesamt';
+            }
+
+            if (spinner) spinner.style.display = 'none';
+            window.showNotification(
+                (neueErgebnisse.length - aktuelleIds.size) + ' neue Antwort(en) geladen.',
+                'success'
+            );
+        })
+        .catch(function(err) {
+            if (spinner) spinner.style.display = 'none';
+            window.showNotification('Fehler beim Aktualisieren der Daten: ' + err, 'error');
+        });
     }
 
     // Hilfsfunktion: HTML-Sonderzeichen escapen

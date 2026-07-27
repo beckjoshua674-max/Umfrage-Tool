@@ -942,8 +942,15 @@ def admin():
     except Exception as e:
         print(f"Fehler beim Laden der Links: {e}")
 
+    # Aktive Umfragen: nur status == aktiv, keine aggregierten Pseudo-Einträge
+    # Wird für "Umfragen bearbeiten"-Dropdown und "Linkerstellung"-Checkboxen genutzt
+    aktive_umfragen = [u for u in alle_umfragen
+                       if u.get('status') not in ('archiviert', 'aggregiert')
+                       and not u.get('is_aggregated')]
+
     resp = make_response(render_template('admin.html',
                                          umfragen=alle_umfragen,
+                                         aktive_umfragen=aktive_umfragen,
                                          ergebnisse=alle_ergebnisse,
                                          statistiken=alle_statistiken,
                                          teilnahme_gesamt=teilnahme_gesamt,
