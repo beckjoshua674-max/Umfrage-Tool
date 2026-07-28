@@ -397,84 +397,93 @@
      TAB 4: LINKERSTELLUNG
      ============================================================ -->
 <div id="tab-linkerstellung" class="admin-tab-inhalt">
-    <div class="card" style="margin-bottom: 24px;">
-        <div class="card-header">
-            <h2>Neuen Link generieren</h2>
-            <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.95rem;">
-                Wählen Sie die Umfragen aus, die über den neuen Link erreichbar sein sollen.
-            </p>
+    <div style="display: grid; grid-template-columns: minmax(280px, 1fr) 2fr; gap: 20px; align-items: start;">
+
+        <!-- Linke Spalte: Neuen Link generieren -->
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header">
+                <h2>Neuen Link generieren</h2>
+                <p style="color: var(--color-text-light); margin: 4px 0 0; font-size: 0.85rem;">
+                    Umfragen auswählen und Link erstellen.
+                </p>
+            </div>
+            <div class="card-body">
+                <div style="margin-bottom: 16px;">
+                    <label class="builder-label" style="margin-bottom: 8px; display: block;">Verfügbare Umfragen:</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px;" id="link-surveys-container">
+                        {% for u in aktive_umfragen %}
+                        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.875rem; line-height: 1.4;">
+                            <input type="checkbox" name="link-survey-select" value="{{ u.survey_id }}" style="margin-top: 2px; flex-shrink: 0;">
+                            <span>
+                                <strong>{{ u.title }}</strong><br>
+                                <span style="color: var(--color-text-light); font-size: 0.78rem;">{{ u.survey_id }}</span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <button class="btn-primary" style="width: 100%;" onclick="generiereLink(event)">Link erstellen</button>
+            </div>
         </div>
-        <div class="card-body">
-            <div style="margin-bottom: 20px;">
-                <label class="builder-label">Verfügbare Umfragen:</label>
-                <div style="display: flex; flex-direction: column; gap: 10px;" id="link-surveys-container">
-                    {% for u in aktive_umfragen %}
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                        <input type="checkbox" name="link-survey-select" value="{{ u.survey_id }}">
-                        Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id %}_v{{ u.get('version', 1) }}{% endif %}
-                    </label>
-                    {% endfor %}
+
+        <!-- Rechte Spalte: Bestehende Links -->
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header">
+                <h2>Bestehende Links</h2>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                    <table class="table" style="margin: 0;">
+                        <thead>
+                            <tr>
+                                <th style="width: 160px;">Link</th>
+                                <th>Umfragen</th>
+                                <th style="width: 100px;">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if links %}
+                                {% for token, surveys in links.items() %}
+                                <tr style="vertical-align: top;">
+                                    <td style="padding: 10px 12px;">
+                                        <code style="font-size: 0.8rem; background: var(--color-bg-alt, #f5f5f5); padding: 2px 6px; border-radius: 4px; display: block; margin-bottom: 4px;">{{ token }}</code>
+                                        <a href="/link/{{ token }}" target="_blank" style="font-size: 0.78rem; word-break: break-all;">/link/{{ token }}</a>
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        {% set aktive_survey_ids = umfragen | map(attribute='survey_id') | list %}
+                                        {% for s in surveys %}
+                                            {% if s in aktive_survey_ids %}
+                                                {% set ns_u_title = namespace(title=s) %}
+                                                {% for u in umfragen %}
+                                                    {% if u.survey_id == s %}
+                                                        {% set ns_u_title.title = u.title %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                <span style="font-size: 0.8rem; display: block; margin-bottom: 2px;">&#10003; {{ ns_u_title.title }}</span>
+                                            {% else %}
+                                                <span style="font-size: 0.78rem; display: block; color: #dc2626; text-decoration: line-through; opacity: 0.7;" title="Gelöscht">&#10007; {{ s }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    <td style="padding: 10px 12px;">
+                                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                                            <button class="btn-secondary btn-compact" onclick="zeigeQRCode('{{ token }}')" title="QR-Code anzeigen">&#9638; QR</button>
+                                            <button class="btn-secondary btn-compact" style="color: #dc2626; border-color: #fca5a5;" onclick="loescheLink('{{ token }}')">Löschen</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" style="text-align: center; color: var(--color-text-light); padding: 24px;">Keine Links vorhanden.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <button class="btn-primary" onclick="generiereLink(event)">Link erstellen</button>
         </div>
-    </div>
 
-    <div class="card">
-        <div class="card-header">
-            <h2>Bestehende Links</h2>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Link-Token</th>
-                            <th>Zugewiesene Umfragen</th>
-                            <th>Aktionen</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if links %}
-                            {% for token, surveys in links.items() %}
-                            <tr>
-                                <td>
-                                    <span class="badge">{{ token }}</span><br>
-                                    <a href="/link/{{ token }}" target="_blank" style="font-size: 0.85rem; margin-top: 4px; display: inline-block;">/link/{{ token }}</a>
-                                </td>
-                                <td>
-                                    {% set aktive_survey_ids = umfragen | map(attribute='survey_id') | list %}
-                                    {% for s in surveys %}
-                                        {% if s in aktive_survey_ids %}
-                                            {% set ns_u_title = namespace(title=s) %}
-                                            {% for u in umfragen %}
-                                                {% if u.survey_id == s %}
-                                                    {% set ns_u_title.title = u.title %}
-                                                {% endif %}
-                                            {% endfor %}
-                                            <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block;">Name: {{ ns_u_title.title }} | ID: {{ s }}</span><br>
-                                        {% else %}
-                                            <span class="badge badge-secondary" style="margin-bottom: 4px; display: inline-block; text-decoration: line-through; opacity: 0.6; color: #dc2626;" title="Diese Umfrage wurde gelöscht.">ID: {{ s }} (Gelöschte Umfrage)</span><br>
-                                        {% endif %}
-                                    {% endfor %}
-                                </td>
-                                <td style="white-space: nowrap;">
-                                    <button class="btn-secondary btn-compact" onclick="zeigeQRCode('{{ token }}')" style="margin-bottom: 6px; width: 100%;">
-                                        &#9638; QR-Code
-                                    </button>
-                                    <button class="btn-secondary btn-compact" style="color: #dc2626; border-color: #fca5a5; width: 100%;" onclick="loescheLink('{{ token }}')">Löschen</button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="3" style="text-align: center; color: var(--color-text-light);">Keine Links vorhanden.</td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 

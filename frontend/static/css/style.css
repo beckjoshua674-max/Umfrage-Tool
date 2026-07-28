@@ -2121,3 +2121,10 @@ main {
         text-align: left;
     }
 }
+
+/* Linkerstellung: zweispaltig → einspaltig auf kleinen Bildschirmen */
+@media (max-width: 768px) {
+    #tab-linkerstellung > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+}
