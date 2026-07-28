@@ -56,7 +56,9 @@
                 <select id="stats-filter-select" class="form-control form-control-compact" onchange="filterStatistiken(this.value)">
                     <option value="alle">Alle Umfragen anzeigen</option>
                     {% for u in umfragen %}
-                    <option value="{{ u.survey_id }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% elif u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}</option>
+                    {% if u.status != 'archiviert' %}
+                    <option value="{{ u.survey_id }}">Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}</option>
+                    {% endif %}
                     {% endfor %}
                 </select>
                 {% endif %}
@@ -75,19 +77,27 @@
             <!-- Teilnahme-Statistik -->
             <div class="teilnahme-statistik-dashboard stats-grid">
                 {% for u in umfragen %}
+                {% if u.status != 'archiviert' %}
                 <div class="stats-card-item stats-card-clickable" data-survey-id="{{ u.survey_id }}" onclick="waehleUmfrageAus('{{ u.survey_id }}')">
                     <div class="stats-card-title" style="font-weight: 700; font-size: 1rem;">Name: {{ u.title }}</div>
-                    <div style="font-size: 0.8rem; color: var(--color-text-light); margin-top: 4px; margin-bottom: 8px; word-break: break-word; overflow-wrap: anywhere;">ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} <span style="color:#d93025; font-weight:bold;">[Archiviert]</span>{% elif u.get('is_aggregated') %} <span style="color:#1a73e8; font-weight:bold;">[Gesamt]</span>{% endif %}</div>
+                    <div style="font-size: 0.8rem; color: var(--color-text-light); margin-top: 4px; margin-bottom: 8px; word-break: break-word; overflow-wrap: anywhere;">ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.get('is_aggregated') %} <span style="color:#1a73e8; font-weight:bold;">[Gesamt]</span>{% endif %}</div>
                     <div class="stats-card-number">
                         {{ teilnahme_nach_umfrage.get(u.survey_id, 0) }}
                         <span class="stats-card-unit">Teilnahmen</span>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
 
             {% for sid, fragen_stats in statistiken.items() %}
-            {% if fragen_stats %}
+            {% set ns_archiviert = namespace(ist_archiviert=false) %}
+            {% for u in umfragen %}
+                {% if u.survey_id == sid and u.status == 'archiviert' %}
+                    {% set ns_archiviert.ist_archiviert = true %}
+                {% endif %}
+            {% endfor %}
+            {% if fragen_stats and not ns_archiviert.ist_archiviert %}
             <div class="statistik-umfrage-block" data-survey-id="{{ sid }}">
                 <h3 class="statistik-umfrage-titel">
                     {% set ns_titel = namespace(titel=sid) %}
@@ -175,9 +185,11 @@
                 <label class="builder-label">Filtern nach Umfrage:</label>
                 <button class="filter-btn aktiv" onclick="filterErgebnisse('alle', this)">Alle</button>
                 {% for u in umfragen %}
+                {% if u.status != 'archiviert' %}
                 <button class="filter-btn" onclick="filterErgebnisse('{{ u.survey_id }}', this)">
-                    Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.status == 'archiviert' %} [Archiviert]{% elif u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}
+                    Name: {{ u.title }} | ID: {{ u.survey_id }}{% if not '_v' in u.survey_id and not u.get('is_aggregated') %}_v{{ u.get('version', 1) }}{% endif %}{% if u.get('is_aggregated') %} [Gesamtauswertung]{% endif %}
                 </button>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
