@@ -1174,10 +1174,11 @@ def get_qrcode(link_id):
         )
         if res.ok:
             from flask import Response as FlaskResponse
+            disposition = "attachment" if request.args.get("download") == "1" else "inline"
             return FlaskResponse(
                 res.content,
                 mimetype="image/png",
-                headers={"Content-Disposition": f'attachment; filename="qrcode_{link_id}.png"'}
+                headers={"Content-Disposition": f'{disposition}; filename="qrcode_{link_id}.png"'}
             )
         return res.text, res.status_code
     except Exception as e:
