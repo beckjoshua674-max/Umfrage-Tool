@@ -15,8 +15,8 @@
             </a>
 
             <div class="header-titles">
-                <h1>{% block header_title %}Evaluation & Umfragen{% endblock %}</h1>
-                <p>{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>
+                <h1>{% block header_title %}Feedback leicht gemacht{% endblock %}</h1>
+                <p class="header-subtitle-text">{% block header_subtitle %}Umfrage-Tool der Hochschule Kehl{% endblock %}</p>
             </div>
             
             {% if session.get('token') %}
@@ -211,6 +211,30 @@
         }
 
         // 2. Lade-Spinner Logik
+        var _spinnerTimeout = null;
+
+        function _zeigeSpinner() {
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'flex';
+                // Sicherheitsnetz: Spinner nach max. 6 Sekunden automatisch ausblenden
+                clearTimeout(_spinnerTimeout);
+                _spinnerTimeout = setTimeout(function() {
+                    if (spinner) spinner.style.display = 'none';
+                }, 6000);
+            }
+        }
+
+        function _verbergeSpinner() {
+            clearTimeout(_spinnerTimeout);
+            var spinner = document.getElementById('global-loading-spinner');
+            if (spinner) spinner.style.display = 'none';
+        }
+
+        // Spinner beim vollständigen Laden der Seite immer ausblenden (auch aus Browser-Cache)
+        window.addEventListener('pageshow', _verbergeSpinner);
+        window.addEventListener('load', _verbergeSpinner);
+
         window.addEventListener('beforeunload', function(e) {
             var activeElement = document.activeElement;
             if (activeElement) {
@@ -221,10 +245,7 @@
                     return;
                 }
             }
-            var spinner = document.getElementById('global-loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'flex';
-            }
+            _zeigeSpinner();
         });
     })();
     </script>
