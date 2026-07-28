@@ -431,7 +431,7 @@
                         <tr>
                             <th>Link-Token</th>
                             <th>Zugewiesene Umfragen</th>
-                            <th>Aktion</th>
+                            <th>Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -458,8 +458,11 @@
                                         {% endif %}
                                     {% endfor %}
                                 </td>
-                                <td>
-                                    <button class="btn-secondary" style="color: #dc2626; border-color: #fca5a5;" onclick="loescheLink('{{ token }}')">Löschen</button>
+                                <td style="white-space: nowrap;">
+                                    <button class="btn-secondary btn-compact" onclick="zeigeQRCode('{{ token }}')" style="margin-bottom: 6px; width: 100%;">
+                                        &#9638; QR-Code
+                                    </button>
+                                    <button class="btn-secondary btn-compact" style="color: #dc2626; border-color: #fca5a5; width: 100%;" onclick="loescheLink('{{ token }}')">Löschen</button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -2073,7 +2076,54 @@
             window.showNotification(err.message, 'error');
         });
     }
+
+    // -------------------------------------------------------
+    // QR-Code Modal
+    // -------------------------------------------------------
+    function zeigeQRCode(linkId) {
+        var modal = document.getElementById('qrcode-modal');
+        var img   = document.getElementById('qrcode-img');
+        var label = document.getElementById('qrcode-link-label');
+        var dlBtn = document.getElementById('qrcode-download-btn');
+
+        var baseUrl = window.location.origin;
+        var linkUrl = baseUrl + '/link/' + linkId;
+        var qrSrc   = '/admin/links/' + linkId + '/qrcode?base_url=' + encodeURIComponent(baseUrl);
+
+        label.textContent = linkUrl;
+        img.src = qrSrc;
+        dlBtn.href = qrSrc.replace('?', '?download=1&');
+        dlBtn.download = 'qrcode_' + linkId + '.png';
+
+        modal.style.display = 'flex';
+    }
+
+    function schliesseQRCode() {
+        var modal = document.getElementById('qrcode-modal');
+        modal.style.display = 'none';
+        document.getElementById('qrcode-img').src = '';
+    }
+
+    // Klick auf Hintergrund schließt das Modal
+    document.getElementById('qrcode-modal').addEventListener('click', function(e) {
+        if (e.target === this) schliesseQRCode();
+    });
 </script>
+
+<!-- QR-Code Modal -->
+<div id="qrcode-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.55); z-index:10001; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:32px; border-radius:12px; max-width:380px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.25); text-align:center;">
+        <h3 style="margin-top:0; color:var(--color-hs-kehl); font-size:1.2rem;">QR-Code</h3>
+        <p id="qrcode-link-label" style="font-size:0.85rem; color:var(--color-text-light); margin-bottom:16px; word-break:break-all;"></p>
+        <div style="border:2px solid var(--color-border); border-radius:8px; padding:12px; display:inline-block; background:#fff; margin-bottom:20px;">
+            <img id="qrcode-img" src="" alt="QR-Code" style="display:block; width:220px; height:220px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <a id="qrcode-download-btn" href="" download="qrcode.png" class="btn-primary" style="display:block; padding:10px;">&#11123; Als PNG herunterladen</a>
+            <button class="btn-secondary" onclick="schliesseQRCode()" style="padding:10px;">Schließen</button>
+        </div>
+    </div>
+</div>
 
 <!-- CSV-Export Abfrage-Modal -->
 <div id="csv-export-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">

@@ -584,5 +584,46 @@ def delete_link(link_id):
         return "", 204
     return jsonify({"status": "error", "message": "Link nicht gefunden."}), 404
 
+@app.route("/api/links/<link_id>/qrcode", methods=["GET"])
+def get_link_qrcode(link_id):
+    """Generiert einen QR-Code als PNG-Bild für den angegebenen Link.
+    Der QR-Code encodiert die vollständige URL: <base_url>/link/<link_id>.
+    ?base_url=<url> muss vom Client übergeben werden (z.B. http://192.168.1.10:5000).
+    """
+    links = lade_links()
+    if link_id not in links:
+        return jsonify({"status": "error", "message": "Link nicht gefunden."}), 404
+
+    base_url = request.args.get("base_url", "http://127.0.0.1:5000").rstrip("/")
+    full_url = f"{base_url}/link/{link_id}"
+
+    try:
+        import qrcode
+        import io
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(full_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+
+        return Response(
+            buf.getvalue(),
+            mimetype="image/png",
+            headers={
+                "Content-Disposition": f'inline; filename="qrcode_{link_id}.png"',
+                "Cache-Control": "no-store"
+            }
+        )
+    except ImportError:
+        return jsonify({"status": "error", "message": "qrcode-Bibliothek nicht installiert."}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

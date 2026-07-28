@@ -1158,5 +1158,30 @@ def remove_link(link_id):
     except Exception as e:
         return json_mod.dumps({"status": "error", "message": str(e)}), 503, {"Content-Type": "application/json; charset=utf-8"}
 
+@app.route('/admin/links/<link_id>/qrcode', methods=['GET'])
+@login_required
+def get_qrcode(link_id):
+    """Proxy: Ruft QR-Code-PNG vom Backend ab und leitet es weiter.
+    Übergibt die base_url des Frontends, damit der QR-Code die korrekte URL encodiert."""
+    import requests as req_lib
+    base_url = request.args.get('base_url', request.host_url.rstrip('/'))
+    try:
+        res = req_lib.get(
+            f"{BACKEND_API_URL}/links/{link_id}/qrcode",
+            params={"base_url": base_url},
+            headers=get_auth_headers(),
+            timeout=5
+        )
+        if res.ok:
+            from flask import Response as FlaskResponse
+            return FlaskResponse(
+                res.content,
+                mimetype="image/png",
+                headers={"Content-Disposition": f'attachment; filename="qrcode_{link_id}.png"'}
+            )
+        return res.text, res.status_code
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)}), 503, {"Content-Type": "application/json"}
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
