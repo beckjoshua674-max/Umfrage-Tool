@@ -1,0 +1,22 @@
+result_id;timestamp;survey_id;question_id;answer
+0c73cd34-9992-44c6-a943-b3b2faed26d8;2026-07-12T10:40:44.005615Z;ask_alma_lehrende_v1;q1;
+0c73cd34-9992-44c6-a943-b3b2faed26d8;2026-07-12T10:40:44.005615Z;ask_alma_lehrende_v1;q2;sehr_hilfreich
+0c73cd34-9992-44c6-a943-b3b2faed26d8;2026-07-12T10:40:44.005615Z;ask_alma_lehrende_v1;q3;ja
+96829907-1a55-4416-95d1-07c5afc7c4a0;2026-07-22T19:39:41.246181Z;ask_alma_lehrende_v1;q1;Test
+96829907-1a55-4416-95d1-07c5afc7c4a0;2026-07-22T19:39:41.246181Z;ask_alma_lehrende_v1;q2;opt5_sehr_hilfreich
+96829907-1a55-4416-95d1-07c5afc7c4a0;2026-07-22T19:39:41.246181Z;ask_alma_lehrende_v1;q3;ja
+c8935992-d8a9-4e2e-99ff-e5806ae2ae1c;2026-07-22T19:46:11.344217Z;ask_alma_lehrende_v1;q1;
+c8935992-d8a9-4e2e-99ff-e5806ae2ae1c;2026-07-22T19:46:11.344217Z;ask_alma_lehrende_v1;q2;opt2_eher_nicht_hilfreich
+c8935992-d8a9-4e2e-99ff-e5806ae2ae1c;2026-07-22T19:46:11.344217Z;ask_alma_lehrende_v1;q3;ja
+dcf7a7b1-df23-42ee-bbd1-f31804cbe308;2026-07-26T14:45:21.200767Z;ask_alma_lehrende_v1;q1;Test
+dcf7a7b1-df23-42ee-bbd1-f31804cbe308;2026-07-26T14:45:21.200767Z;ask_alma_lehrende_v1;q2;opt5_sehr_hilfreich
+dcf7a7b1-df23-42ee-bbd1-f31804cbe308;2026-07-26T14:45:21.200767Z;ask_alma_lehrende_v1;q3;ja
+7bac1b09-6665-4664-9e9c-05469a8cf3d2;2026-07-26T16:03:03.718759Z;ask_alma_lehrende_v1;q1;Sehr gut
+7bac1b09-6665-4664-9e9c-05469a8cf3d2;2026-07-26T16:03:03.718759Z;ask_alma_lehrende_v1;q2;opt5_sehr_hilfreich
+7bac1b09-6665-4664-9e9c-05469a8cf3d2;2026-07-26T16:03:03.718759Z;ask_alma_lehrende_v1;q3;ja
+c6d91150-eaac-4785-9dfc-dd206dc3ec2c;2026-10-01T16:43:04.272078Z;ask_alma_lehrende_v1;q1;
+c6d91150-eaac-4785-9dfc-dd206dc3ec2c;2026-10-01T16:43:04.272078Z;ask_alma_lehrende_v1;q2;opt5_sehr_hilfreich
+c6d91150-eaac-4785-9dfc-dd206dc3ec2c;2026-10-01T16:43:04.272078Z;ask_alma_lehrende_v1;q3;ja
+d3e87a3b-3547-4481-9fea-e46dfb19db38;2026-10-01T16:45:29.643063Z;ask_alma_lehrende_v1;q1;ja
+d3e87a3b-3547-4481-9fea-e46dfb19db38;2026-10-01T16:45:29.643063Z;ask_alma_lehrende_v1;q2;opt5_sehr_hilfreich
+d3e87a3b-3547-4481-9fea-e46dfb19db38;2026-10-01T16:45:29.643063Z;ask_alma_lehrende_v1;q3;nein
