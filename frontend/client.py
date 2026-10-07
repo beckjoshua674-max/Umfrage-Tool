@@ -472,7 +472,14 @@ def survey():
                 return redirect(url_for('index'))
             
             if not survey_id:
-                if erlaubte_surveys:
+                # Laufende Umfrage aus der Session fortsetzen: Die Weiterleitungen aus
+                # survey_next/survey_back/survey_submit enthalten keine survey_id.
+                # Ohne diese Pruefung wuerde bei Links mit mehreren Umfragen immer
+                # auf die erste Umfrage des Links zurueckgefallen.
+                laufende_id = session.get('survey_version_id')
+                if laufende_id and laufende_id in erlaubte_surveys:
+                    survey_id = laufende_id
+                elif erlaubte_surveys:
                     survey_id = erlaubte_surveys[0]
                 else:
                     flash("Zugriff verweigert. Diesem Umfrage-Link sind keine Umfragen zugeordnet.", "error")

@@ -117,6 +117,13 @@ Der Client durchläuft folgende Phasen:
 3. **Submitting**: Daten werden zu einem JSON-Payload aggregiert und asynchron versendet. Die UI wird während der Übertragung blockiert (Deaktivierung aller Buttons und Ladeanzeige).
 4. **Completed**: Erfolgreiches Senden, Bereinigung der Session-Daten und Setzen des Cookies.
 
+**Bestimmung der laufenden Umfrage (Links mit mehreren Umfragen):** Die Session-Variable `survey_version_id` hält die `survey_id` der aktuell bearbeiteten Umfrage. Die Route `GET /survey` ermittelt die Umfrage in folgender Reihenfolge:
+1. URL-Parameter `survey_id` (Start einer Umfrage über die Startseite); er muss in der Umfrageliste des Links (`link_id` in der Session) enthalten sein.
+2. Fehlt der Parameter (interne Weiterleitungen zwischen den Fragen), wird `survey_version_id` aus der Session verwendet, sofern diese Umfrage weiterhin zum Link gehört.
+3. Andernfalls wird die erste Umfrage des Links geladen.
+
+Ein Wechsel der Umfrage setzt `survey_data`, `survey_answers` und `survey_max_step` zurück. Fehlerzustand: Gehört `survey_version_id` nicht mehr zum Link (z. B. nach Löschen oder Neuversionierung), greift Schritt 3 und die Umfrage beginnt bei Frage 1.
+
 ### 3.3 Speicher und Sicherheit
 * **Missbrauchsschutz (Completed-Cookie):** Nach erfolgreichem Absenden wird ein Cookie namens `survey_completed_<survey_id>` mit dem Wert `saved` gesetzt (Ablaufzeit: 30 Tage, `httponly=True`, `samesite=Lax`). Bei erneutem Aufruf blockiert der Client den API-Aufruf autonom und zeigt die Danke-Seite.
 * **JWT-Verarbeitung:** Das Admin-JWT wird im Authorization-Header (`Authorization: Bearer <token>`) mitgeführt. Bei einer HTTP `401 Unauthorized` Antwort des Servers wird die Client-Session sofort verworfen und ein Redirect zur Login-Seite durchgeführt.
