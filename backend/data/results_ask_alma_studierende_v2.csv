@@ -1,0 +1,6 @@
+result_id;timestamp;survey_id;question_id;answer
+37e5896b-aa75-45da-85dd-f84b87b5d927;2026-10-07T18:55:36.671373Z;ask_alma_studierende_v2;q1;ja
+37e5896b-aa75-45da-85dd-f84b87b5d927;2026-10-07T18:55:36.671373Z;ask_alma_studierende_v2;q2;opt1_gar_nicht
+37e5896b-aa75-45da-85dd-f84b87b5d927;2026-10-07T18:55:36.671373Z;ask_alma_studierende_v2;q3;opt4_mehrmals_w_chentlich
+37e5896b-aa75-45da-85dd-f84b87b5d927;2026-10-07T18:55:36.671373Z;ask_alma_studierende_v2;q4;opt5_sehr_hilfreich
+37e5896b-aa75-45da-85dd-f84b87b5d927;2026-10-07T18:55:36.671373Z;ask_alma_studierende_v2;q5;
